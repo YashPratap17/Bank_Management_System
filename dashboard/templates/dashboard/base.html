@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Kosh — Banking{% endblock %}</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <!-- Tailwind (lightweight helpers) -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    fontFamily: { sans: ["Inter", "sans-serif"], display: ["Fraunces", "serif"] },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* ===== GLOBAL RESET & VARIABLES ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; font-size: 16px; }
+
+        :root {
+            --bg: #fcfbf9;
+            --bg-secondary: #f5f3ef;
+            --surface: #ffffff;
+            --surface-hover: #f4f2ed;
+            --border: rgba(30,30,26,0.08);
+            --text-primary: #201e1a;
+            --text-secondary: #6b6558;
+            --text-muted: #a39c8c;
+            --accent: #0f7a63;
+            --accent-hover: #0b5e4c;
+            --accent-light: rgba(15,122,99,0.09);
+            --danger: #c4432f;
+            --danger-light: rgba(196,67,47,0.08);
+            --warning: #b8863a;
+            --success: #0f7a63;
+            --shadow-sm: 0 1px 2px rgba(30,25,15,0.05);
+            --shadow-md: 0 6px 16px rgba(30,25,15,0.07);
+            --shadow-lg: 0 12px 32px rgba(30,25,15,0.10);
+            --radius-sm: 0.5rem;
+            --radius-md: 0.75rem;
+            --radius-lg: 1rem;
+            --radius-xl: 1.25rem;
+            --radius-2xl: 1.5rem;
+            --transition: 0.2s ease;
+            --glass-bg: rgba(252,251,249,0.82);
+            --glass-blur: 18px;
+            --nav-height: 4rem;
+            --input-bg: #ffffff;
+            --input-border: #e4e0d6;
+            --input-text: #201e1a;
+            --input-placeholder: #a39c8c;
+        }
+
+        /* Dark mode – true black, warm accent kept legible */
+        html.dark {
+            --bg: #000000;
+            --bg-secondary: #0a0a0a;
+            --surface: #121210;
+            --surface-hover: #1c1b18;
+            --border: rgba(255,255,255,0.08);
+            --text-primary: #ebe8e1;
+            --text-secondary: #9c9789;
+            --text-muted: #6b6658;
+            --accent: #29a184;
+            --accent-hover: #3dbd9d;
+            --accent-light: rgba(41,161,132,0.16);
+            --danger: #e2694f;
+            --danger-light: rgba(226,105,79,0.15);
+            --warning: #d4a24c;
+            --success: #29a184;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 6px 16px rgba(0,0,0,0.45);
+            --shadow-lg: 0 12px 32px rgba(0,0,0,0.55);
+            --glass-bg: rgba(10,10,9,0.82);
+            --input-bg: #1a1a17;
+            --input-border: #322f28;
+            --input-text: #ebe8e1;
+            --input-placeholder: #6b6658;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            transition: background-color 0.3s, color 0.3s;
+            position: relative;
+        }
+
+        /* Faint grain texture — restrained, gives the flat teal a bit of
+           material warmth instead of looking like a stock SaaS gradient */
+        body::before {
+            content: "";
+            position: fixed; inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.5;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+        }
+        html.dark body::before { opacity: 0.8; }
+
+        h1, h2, h3 { font-family: 'Fraunces', serif; letter-spacing: -0.01em; }
+
+        /* ===== GLOBAL INPUT STYLES ===== */
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        input[type="email"],
+        input[type="search"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-md);
+            font-size: 0.9375rem;
+            font-family: inherit;
+            color: var(--input-text);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+        input::placeholder, textarea::placeholder {
+            color: var(--input-placeholder);
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 0.75rem;
+            padding-right: 2.5rem;
+        }
+        html.dark select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+        }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+
+        /* ===== NAVBAR ===== */
+        .navbar {
+            position: fixed; top: 0; left: 0; width: 100%; height: var(--nav-height);
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border-bottom: 1px solid var(--border);
+            z-index: 1000;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 1.5rem;
+            transition: background 0.3s, border-color 0.3s;
+        }
+        .navbar-brand {
+            display: flex; align-items: center; gap: 0.55rem;
+            font-family: 'Fraunces', serif;
+            font-weight: 600; font-size: 1.3rem; color: var(--text-primary);
+            text-decoration: none;
+        }
+        .navbar-brand .logo-icon {
+            width: 2rem; height: 2rem; background: var(--accent);
+            border-radius: 0.55rem; display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 1rem;
+            box-shadow: 0 2px 8px var(--accent-light);
+        }
+        .nav-links {
+            display: flex; align-items: center; gap: 0.15rem;
+        }
+        .nav-links a {
+            position: relative;
+            padding: 0.5rem 0.9rem; border-radius: 0.5rem;
+            font-size: 0.875rem; font-weight: 500; color: var(--text-secondary);
+            text-decoration: none; transition: color var(--transition);
+        }
+        .nav-links a::after {
+            content: "";
+            position: absolute; left: 0.9rem; right: 0.9rem; bottom: 0.28rem;
+            height: 2px; border-radius: 2px;
+            background: var(--accent);
+            transform: scaleX(0); transform-origin: left;
+            transition: transform 0.25s ease;
+        }
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-links a:hover::after { transform: scaleX(1); }
+        .nav-links a.active { color: var(--accent); font-weight: 600; }
+        .nav-links a.active::after { transform: scaleX(1); }
+        .nav-actions {
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .theme-toggle {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-secondary); padding: 0.5rem; border-radius: 0.5rem;
+            display: flex; align-items: center; justify-content: center;
+            transition: all var(--transition);
+        }
+        .theme-toggle:hover { background: var(--surface-hover); color: var(--text-primary); transform: rotate(-12deg); }
+        .theme-toggle .material-symbols-outlined { font-size: 1.25rem; }
+
+        .user-badge {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.3rem 0.75rem 0.3rem 0.3rem; border-radius: 2rem;
+            background: var(--surface); border: 1px solid var(--border);
+            font-size: 0.875rem; font-weight: 500;
+        }
+        .avatar {
+            width: 1.75rem; height: 1.75rem; border-radius: 50%;
+            background: var(--accent); color: #fff; display: flex;
+            align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;
+        }
+
+        /* ===== CONTENT ===== */
+        .main-content {
+            position: relative; z-index: 1;
+            padding-top: calc(var(--nav-height) + 1.5rem);
+            padding-left: 1.5rem; padding-right: 1.5rem;
+            padding-bottom: 3rem;
+            max-width: 1200px; margin: 0 auto;
+            animation: fadeSlideIn 0.4s ease;
+        }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== CARDS & COMPONENTS ===== */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: rgba(15,122,99,0.18);
+        }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.625rem 1.25rem; border-radius: 0.75rem;
+            font-size: 0.875rem; font-weight: 600; border: none;
+            cursor: pointer; text-decoration: none; transition: all var(--transition);
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 2px 10px var(--accent-light); }
+        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        .btn-ghost {
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        .btn-ghost:hover { background: var(--surface-hover); }
+        .btn-sm { padding: 0.375rem 0.875rem; font-size: 0.8125rem; border-radius: 0.5rem; }
+
+        .badge {
+            display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.7rem;
+            border-radius: 1rem; font-size: 0.6875rem; font-weight: 600;
+        }
+        .badge::before {
+            content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+        }
+        .badge-success { background: rgba(15,122,99,0.1); color: var(--success); border: 1px solid rgba(15,122,99,0.2); }
+        .badge-danger { background: var(--danger-light); color: var(--danger); border: 1px solid rgba(196,67,47,0.2); }
+
+        /* ===== TABLES ===== */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th {
+            text-align: left; padding: 0.75rem 1rem;
+            font-size: 0.6875rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+        td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--border); }
+        tbody tr { transition: background var(--transition); }
+        tbody tr:hover { background: var(--surface-hover); }
+
+        /* ===== ANIMATIONS ===== */
+        .stagger-item {
+            opacity: 0; transform: translateY(12px);
+            animation: fadeSlideUp 0.5s ease forwards;
+        }
+        @keyframes fadeSlideUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .delay-1 { animation-delay: 0.05s; }
+        .delay-2 { animation-delay: 0.1s; }
+        .delay-3 { animation-delay: 0.15s; }
+        .delay-4 { animation-delay: 0.2s; }
+        .delay-5 { animation-delay: 0.25s; }
+
+        /* Toast */
+        .toast-container {
+            position: fixed; top: 5rem; right: 1.5rem; z-index: 9999;
+            display: flex; flex-direction: column; gap: 0.5rem;
+        }
+        .toast {
+            padding: 0.75rem 1.25rem; border-radius: var(--radius-md);
+            font-size: 0.875rem; font-weight: 500; background: var(--surface);
+            border: 1px solid var(--border); box-shadow: var(--shadow-md);
+            animation: slideInRight 0.3s ease;
+            display: flex; align-items: center; gap: 0.6rem;
+            border-left: 3px solid var(--border);
+        }
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar { padding: 0 1rem; }
+            .nav-links { display: none; }
+        }
+    </style>
+
+    {% block extra_style %}{% endblock %}
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="{% url 'dashboard:home' %}" class="navbar-brand">
+            <div class="logo-icon">
+                <span class="material-symbols-outlined" style="font-size:1.2rem;">account_balance</span>
+            </div>
+            Kosh
+        </a>
+
+        <div class="nav-links">
+            {% if user.is_authenticated %}
+                {% if user.is_staff %}
+                    <a href="/staff/approvals/">Approvals</a>
+                    <a href="/staff/risk/">Risk Desk</a>
+                {% else %}
+                    <a href="{% url 'dashboard:home' %}" class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}">Dashboard</a>
+                    <a href="{% url 'ledger:deposit' %}">Deposit</a>
+                    <a href="{% url 'ledger:transfer' %}">Send Money</a>
+                    <a href="{% url 'dashboard:analytics' %}" class="{% if request.resolver_match.url_name == 'analytics' %}active{% endif %}">Analytics</a>
+                    <a href="{% url 'dashboard:register_face' %}" class="{% if request.resolver_match.url_name == 'register_face' %}active{% endif %}">Face ID</a>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="nav-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
+                <span class="material-symbols-outlined" id="themeIcon">dark_mode</span>
+            </button>
+
+            {% if user.is_authenticated %}
+                <div class="user-badge">
+                    <div class="avatar">{{ user.username|slice:":1"|upper }}</div>
+                    <span>{{ user.username }}</span>
+                </div>
+                <form method="post" action="{% url 'logout' %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm">Sign out</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}" class="btn btn-ghost btn-sm">Log in</a>
+                <a href="{% url 'dashboard:register' %}" class="btn btn-primary btn-sm">Open account</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Toast messages -->
+    {% if messages %}
+    <div class="toast-container">
+        {% for message in messages %}
+        <div class="toast {% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% endif %}">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;">
+                {% if message.tags == 'error' %}error{% elif message.tags == 'success' %}check_circle{% else %}info{% endif %}
+            </span>
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Dark mode script (light by default, no system detection) -->
+    <script>
+        (function() {
+            const html = document.documentElement;
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+
+            // Light mode by default, only switch if saved preference is dark
+            const savedTheme = localStorage.getItem('kosh-theme');
+            if (savedTheme === 'dark') {
+                html.classList.add('dark');
+                themeIcon.textContent = 'light_mode';
+            } else {
+                html.classList.remove('dark');
+                themeIcon.textContent = 'dark_mode';
+            }
+
+            themeToggle.addEventListener('click', () => {
+                html.classList.toggle('dark');
+                const isDark = html.classList.contains('dark');
+                localStorage.setItem('kosh-theme', isDark ? 'dark' : 'light');
+                themeIcon.textContent = isDark ? 'light_mode' : 'dark_mode';
+                window.dispatchEvent(new CustomEvent('themechange', { detail: { dark: isDark } }));
+            });
+        })();
+    </script>
+
+    {% block extra_script %}{% endblock %}
+</body>
+</html>

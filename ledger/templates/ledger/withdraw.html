@@ -1,0 +1,85 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Withdraw — Kosh{% endblock %}
+
+{% block content %}
+<div class="stagger-item delay-1" style="max-width: 500px; margin: 0 auto;">
+
+    <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem;">
+        <span class="material-symbols-outlined" style="font-size:1rem;">arrow_back</span> Dashboard
+    </a>
+
+    <div class="card" style="border-color: rgba(239,68,68,0.2);">
+        <div style="padding: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="color: var(--danger);">arrow_upward</span>
+                <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--danger);">Withdraw</span>
+            </div>
+            <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">Withdraw Funds</h1>
+
+            <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: var(--accent-light); border: 1px solid rgba(13,148,136,0.15); border-radius: 2rem; padding: 0.375rem 1rem; margin: 1rem 0 1.5rem;">
+                <span class="material-symbols-outlined" style="font-size:1rem; color: var(--accent);">account_balance_wallet</span>
+                <span style="font-size: 0.875rem;">Available: <strong style="color: var(--accent);">₹{{ account.get_balance }}</strong></span>
+            </div>
+
+            <div style="text-align: center; font-size: 3rem; font-weight: 800; color: var(--danger); letter-spacing: -2px; line-height: 1; margin-bottom: 1.5rem;" id="amount-display">₹0</div>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="id_amount" style="display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Amount (₹)</label>
+                    <input
+                        type="number"
+                        name="amount"
+                        id="id_amount"
+                        min="0.01" step="0.01"
+                        placeholder="Enter amount"
+                        value="{{ form.amount.value|default:'' }}"
+                        class="input-field"
+                        style="font-size:1.5rem; font-weight:700; text-align:center; color: var(--danger);"
+                        autocomplete="off"
+                    >
+                    {% if form.amount.errors %}
+                    <p style="color: var(--danger); font-size: 0.75rem; margin-top: 0.25rem;">{{ form.amount.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="id_description" style="display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Note (optional)</label>
+                    <input
+                        type="text"
+                        name="description"
+                        id="id_description"
+                        maxlength="255"
+                        placeholder="e.g. ATM withdrawal"
+                        value="{{ form.description.value|default:'' }}"
+                        class="input-field"
+                    >
+                </div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button type="submit" class="btn" style="flex:1; justify-content:center; background: var(--danger); color: #fff; border: none;">
+                        <span class="material-symbols-outlined" style="font-size:1rem;">arrow_upward</span> Withdraw
+                    </button>
+                    <a href="{% url 'dashboard:home' %}" class="btn btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function(){
+    const amtInput   = document.getElementById('id_amount');
+    const amtDisplay = document.getElementById('amount-display');
+    function update() {
+        const v = parseFloat(amtInput.value);
+        amtDisplay.textContent = isNaN(v) ? '₹0' : '₹' + v.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+    }
+    amtInput.addEventListener('input', update);
+    if (amtInput.value) update();
+})();
+</script>
+{% endblock %}

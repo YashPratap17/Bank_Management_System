@@ -1,0 +1,11 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Pending approval{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px; margin:60px auto;">
+    <h3>Awaiting approval</h3>
+    <p>Hi {{ customer.full_name }}, your account (roll number {{ customer.roll_number }}) has been registered
+       but hasn't been approved yet. Once an admin approves it, you'll be able to log in and use the account
+       normally — deposits, transfers, and transaction history.</p>
+    <p class="muted">If this is taking a while, check with whoever is running the class demo.</p>
+</div>
+{% endblock %}

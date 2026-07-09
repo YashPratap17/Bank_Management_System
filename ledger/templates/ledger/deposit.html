@@ -1,0 +1,174 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Deposit — Kosh{% endblock %}
+
+{% block extra_style %}
+<style>
+    .floating-wrapper { position: relative; }
+    .floating-input {
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 22px 16px 8px 16px;
+        font-size: 16px;
+        font-family: 'Inter', sans-serif;
+        color: var(--text-primary);
+        transition: border 0.2s, box-shadow 0.2s;
+        outline: none;
+    }
+    .floating-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    .floating-label {
+        position: absolute;
+        left: 16px; top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        font-size: 14px;
+        transition: all 0.2s ease;
+        pointer-events: none;
+        transform-origin: left top;
+    }
+    .floating-input:focus ~ .floating-label,
+    .floating-input:not(:placeholder-shown) ~ .floating-label {
+        top: 10px;
+        transform: translateY(0) scale(0.78);
+        color: var(--accent);
+        font-weight: 600;
+    }
+    .amount-input {
+        padding: 22px 16px 8px 44px;
+        font-size: 28px;
+        font-weight: 700;
+    }
+    .quick-amt-btn-new {
+        flex: 1; min-width: 68px;
+        background: var(--accent-light);
+        border: 1px solid rgba(13,148,136,0.2);
+        border-radius: 10px; padding: 10px 8px;
+        font-size: 13px; font-weight: 600;
+        color: var(--accent); cursor: pointer; text-align: center;
+        transition: all 0.18s; font-family: 'Inter', sans-serif;
+    }
+    .quick-amt-btn-new:hover, .quick-amt-btn-new.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+        transform: translateY(-1px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stagger-item delay-1" style="max-width: 500px; margin: 0 auto;">
+
+    <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem;">
+        <span class="material-symbols-outlined" style="font-size:1rem;">arrow_back</span> Dashboard
+    </a>
+
+    <div class="card" style="overflow: hidden;">
+        <div style="background: var(--accent); height: 4px; width: 100%;"></div>
+
+        <div style="padding: 1.5rem;">
+            <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">Add Funds</h1>
+            <p style="font-size: 0.875rem; color: var(--text-secondary);">
+                <span class="material-symbols-outlined" style="font-size:1rem; vertical-align:middle;">account_balance_wallet</span>
+                Account: <strong>{{ account.account_number }}</strong>
+                · Balance: <strong style="color: var(--accent);">₹{{ account.get_balance }}</strong>
+            </p>
+
+            <div style="text-align: center; padding: 2rem 0 1rem;">
+                <div style="font-size: 3rem; font-weight: 800; color: var(--accent); letter-spacing: -2px; line-height:1;" id="amount-display">₹0</div>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Amount to deposit</p>
+            </div>
+
+            <form method="post" id="deposit-form">
+                {% csrf_token %}
+
+                <div class="floating-wrapper" style="margin-bottom: 1rem;">
+                    <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--text-muted); z-index: 2;">₹</span>
+                    <input
+                        type="number" name="amount" id="id_amount"
+                        min="0.01" step="0.01" placeholder=" "
+                        value="{{ form.amount.value|default:'' }}"
+                        class="floating-input amount-input"
+                        autocomplete="off"
+                    >
+                    <label class="floating-label" for="id_amount" style="left:44px;">Amount (₹)</label>
+                    {% if form.amount.errors %}
+                    <p style="color: var(--danger); font-size: 0.75rem; margin-top: 0.25rem;">{{ form.amount.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <button type="button" class="quick-amt-btn-new" data-amt="500">₹500</button>
+                    <button type="button" class="quick-amt-btn-new" data-amt="1000">₹1,000</button>
+                    <button type="button" class="quick-amt-btn-new" data-amt="2000">₹2,000</button>
+                    <button type="button" class="quick-amt-btn-new" data-amt="5000">₹5,000</button>
+                </div>
+
+                <div class="floating-wrapper" style="margin-bottom: 1.5rem;">
+                    <input
+                        type="text" name="description" id="id_description"
+                        maxlength="255" placeholder=" "
+                        value="{{ form.description.value|default:'' }}"
+                        class="floating-input"
+                    >
+                    <label class="floating-label" for="id_description">Add a note (optional)</label>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; align-items: center; background: var(--surface-hover); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.5rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent);">account_balance_wallet</span>
+                    <div>
+                        <p style="font-weight: 600; font-size: 0.875rem;">To Digital Vault</p>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">{{ account.account_number }}</p>
+                    </div>
+                    <span class="material-symbols-outlined" style="color: var(--accent); margin-left: auto;">check_circle</span>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;" id="btn-deposit">
+                        <span class="btn-text">Confirm Deposit</span>
+                    </button>
+                    <a href="{% url 'dashboard:home' %}" class="btn btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function(){
+    const amtInput   = document.getElementById('id_amount');
+    const amtDisplay = document.getElementById('amount-display');
+
+    function updateDisplay() {
+        const v = parseFloat(amtInput.value);
+        amtDisplay.textContent = isNaN(v) ? '₹0' : '₹' + v.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+    }
+
+    amtInput.addEventListener('input', updateDisplay);
+    if (amtInput.value) updateDisplay();
+
+    document.querySelectorAll('.quick-amt-btn-new').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.quick-amt-btn-new').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            amtInput.value = btn.dataset.amt;
+            updateDisplay();
+            amtInput.focus();
+        });
+    });
+
+    // Loading state on submit
+    document.getElementById('deposit-form').addEventListener('submit', function() {
+        const btn = document.getElementById('btn-deposit');
+        btn.innerHTML = '<span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">progress_activity</span> Processing…';
+        btn.classList.add('pointer-events-none', 'opacity-75');
+    });
+})();
+</script>
+{% endblock %}

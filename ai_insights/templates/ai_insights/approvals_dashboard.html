@@ -1,0 +1,45 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Approvals{% endblock %}
+{% block content %}
+<h2>Student approvals</h2>
+
+{% if messages %}
+    {% for message in messages %}
+    <div class="card" style="border-left:4px solid var(--teal);">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+
+<h3>Pending ({{ pending|length }})</h3>
+{% for customer in pending %}
+<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+        <strong>{{ customer.full_name }}</strong> — {{ customer.roll_number }}
+        {% if customer.branch %}<span class="muted">({{ customer.branch }})</span>{% endif %}
+        <div class="muted">Registered {{ customer.created_at|date:"d M Y, H:i" }}</div>
+    </div>
+    <div>
+        <form method="post" action="{% url 'ai_insights:approve_customer' customer.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'ai_insights:reject_customer' customer.id %}" style="display:inline; margin-left:6px;">
+            {% csrf_token %}
+            <button type="submit" style="background:#b3541e;">Reject</button>
+        </form>
+    </div>
+</div>
+{% empty %}
+<p class="muted">No pending registrations.</p>
+{% endfor %}
+
+<h3 style="margin-top:28px;">Recently decided</h3>
+{% for customer in recently_decided %}
+<div class="card">
+    <strong>{{ customer.full_name }}</strong> ({{ customer.roll_number }}) —
+    <span class="{% if customer.approval_status == 'REJECTED' %}status-flagged{% endif %}">{{ customer.get_approval_status_display }}</span>
+    <span class="muted">by {{ customer.approved_by }} on {{ customer.approved_at|date:"d M Y" }}</span>
+</div>
+{% empty %}
+<p class="muted">No decisions yet.</p>
+{% endfor %}
+{% endblock %}

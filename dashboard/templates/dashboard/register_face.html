@@ -1,0 +1,231 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Set Up Face Login — Kosh{% endblock %}
+
+{% block extra_style %}
+<style>
+    .face-card {
+        max-width: 480px;
+        margin: 2rem auto;
+    }
+    .video-container {
+        position: relative;
+        width: 100%;
+        max-width: 360px;
+        margin: 0 auto 1.25rem;
+        border-radius: 1rem;
+        overflow: hidden;
+        background: #000;
+        aspect-ratio: 4/3;
+    }
+    #face-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        border-radius: 1rem;
+    }
+    .face-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+    .face-ring {
+        width: 180px;
+        height: 220px;
+        border: 3px dashed rgba(13,148,136,0.7);
+        border-radius: 50%;
+        animation: pulse-ring 2s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+        0%, 100% { opacity: 0.5; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.04); }
+    }
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.9rem;
+        border-radius: 2rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        margin-bottom: 1.25rem;
+        transition: all 0.3s;
+    }
+    .status-pill.loading { border-color: var(--warning); color: var(--warning); }
+    .status-pill.success { border-color: var(--success); color: var(--success); background: rgba(16,185,129,0.08); }
+    .status-pill.error   { border-color: var(--danger);  color: var(--danger);  background: rgba(239,68,68,0.08); }
+    .dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: currentColor;
+        animation: blink 1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+</style>
+{% endblock %}
+
+{% block content %}
+{% url 'dashboard:home' as url_home %}
+{% url 'dashboard:api_register_face' as url_api_register_face %}
+
+<div class="face-card stagger-item delay-1">
+    <div class="card">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <span class="material-symbols-outlined" style="font-size: 2.5rem; color: var(--accent);">face_unlock</span>
+            <h1 style="font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem;">Set Up Face Login</h1>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.35rem;">
+                Skip passwords — sign in instantly with your face. This is <strong>optional</strong>.
+            </p>
+        </div>
+
+        <!-- Hidden CSRF form (for fetch header) -->
+        <form id="csrf-form" style="display:none;">{% csrf_token %}</form>
+
+        <!-- Status pill -->
+        <div style="text-align: center;">
+            <div class="status-pill loading" id="status-pill">
+                <span class="dot"></span>
+                <span id="status-text">Starting camera…</span>
+            </div>
+        </div>
+
+        <!-- Video -->
+        <div class="video-container">
+            <video id="face-video" autoplay muted playsinline></video>
+            <div class="face-overlay">
+                <div class="face-ring" id="face-ring"></div>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <button id="capture-btn" class="btn btn-primary" style="justify-content: center; width: 100%;" disabled>
+                <span class="material-symbols-outlined" style="font-size: 1.1rem;">photo_camera</span>
+                Capture &amp; Register Face
+            </button>
+            <a href="{{ url_home }}" id="skip-btn" class="btn btn-ghost" style="justify-content: center; width: 100%;">
+                Skip for now — use password login
+            </a>
+        </div>
+
+        <div style="margin-top: 1.25rem; padding: 0.875rem; background: var(--accent-light); border-radius: 0.75rem; font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 0.5rem; align-items: flex-start;">
+            <span class="material-symbols-outlined" style="font-size: 1rem; color: var(--accent); flex-shrink: 0; margin-top: 0.1rem;">shield</span>
+            <span>Your face data is encrypted and stored securely. You can always use your password as a backup.</span>
+        </div>
+    </div>
+</div>
+
+<canvas id="face-canvas" style="display:none;"
+    data-api-url="{% url 'dashboard:api_register_face' %}"
+    data-home-url="{% url 'dashboard:home' %}"
+></canvas>
+{% endblock %}
+
+{% block extra_script %}
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+(async function () {
+    const video      = document.getElementById('face-video');
+    const canvas     = document.getElementById('face-canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const pill       = document.getElementById('status-pill');
+    const statusTxt  = document.getElementById('status-text');
+    const faceRing   = document.getElementById('face-ring');
+
+    const API_URL  = canvas.dataset.apiUrl;
+    const HOME_URL = canvas.dataset.homeUrl;
+    const csrf     = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    function setStatus(msg, type) {
+        statusTxt.textContent = msg;
+        pill.className = 'status-pill ' + (type || '');
+        const dot = pill.querySelector('.dot');
+        if (dot) dot.style.display = type === 'loading' ? 'block' : 'none';
+    }
+
+    // 1. Load face-api models
+    try {
+        setStatus('Loading AI models…', 'loading');
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    } catch (e) {
+        setStatus('Failed to load AI models. Check your connection.', 'error');
+        return;
+    }
+
+    // 2. Start camera
+    try {
+        setStatus('Requesting camera access…', 'loading');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        video.srcObject = stream;
+        await new Promise(r => video.onloadedmetadata = r);
+        setStatus('Position your face inside the ring, then capture.', '');
+        captureBtn.disabled = false;
+        faceRing.style.borderStyle = 'solid';
+    } catch (err) {
+        setStatus('Camera access denied. You can skip and use password login.', 'error');
+        captureBtn.disabled = true;
+        return;
+    }
+
+    // 3. Capture button
+    captureBtn.addEventListener('click', async () => {
+        captureBtn.disabled = true;
+        setStatus('Detecting face…', 'loading');
+
+        canvas.width  = video.videoWidth  || 320;
+        canvas.height = video.videoHeight || 240;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        let detection;
+        try {
+            detection = await faceapi
+                .detectSingleFace(canvas)
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+        } catch (e) {
+            setStatus('Detection error. Please try again.', 'error');
+            captureBtn.disabled = false;
+            return;
+        }
+
+        if (!detection) {
+            setStatus('No face detected. Centre your face and try again.', 'error');
+            captureBtn.disabled = false;
+            return;
+        }
+
+        setStatus('Saving face ID…', 'loading');
+        try {
+            const resp = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf,
+                },
+                body: JSON.stringify({ descriptor: Array.from(detection.descriptor) }),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                setStatus('Face registered! Redirecting to dashboard…', 'success');
+                // Stop camera
+                video.srcObject.getTracks().forEach(t => t.stop());
+                setTimeout(() => { window.location.href = HOME_URL; }, 1800);
+            } else {
+                setStatus('Error: ' + (data.error || 'Something went wrong.'), 'error');
+                captureBtn.disabled = false;
+            }
+        } catch (e) {
+            setStatus('Network error. Please try again.', 'error');
+            captureBtn.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}

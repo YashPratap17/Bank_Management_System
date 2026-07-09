@@ -1,0 +1,175 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Send Money — Kosh{% endblock %}
+
+{% block extra_style %}
+<style>
+    .recipient-preview {
+        display: none;
+        background: var(--accent-light);
+        border: 1px solid rgba(13,148,136,0.2);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .recipient-preview.visible { display: flex; align-items: center; gap: 1rem; }
+    .recipient-preview.error-state {
+        display: flex;
+        background: var(--danger-light);
+        border-color: rgba(239,68,68,0.2);
+    }
+    .recipient-avatar {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent) 0%, #2563eb 100%);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .looking-indicator { color: var(--text-secondary); font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem; }
+    .looking-indicator .spinner {
+        width: 14px; height: 14px; border: 2px solid var(--border);
+        border-top-color: var(--accent); border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stagger-item delay-1" style="max-width: 500px; margin: 0 auto;">
+
+    <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem;">
+        <span class="material-symbols-outlined" style="font-size:1rem;">arrow_back</span> Dashboard
+    </a>
+
+    <div class="card">
+        <div style="padding: 1.5rem;">
+            <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">Send Money</h1>
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                Transfer funds instantly to another account.
+            </p>
+
+            <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: var(--accent-light); border: 1px solid rgba(13,148,136,0.15); border-radius: 2rem; padding: 0.375rem 1rem; margin-bottom: 1.5rem;">
+                <span class="material-symbols-outlined" style="font-size:1rem; color: var(--accent);">account_balance_wallet</span>
+                <span style="font-size: 0.875rem;">Your balance: <strong style="color: var(--accent);">₹{{ account.get_balance }}</strong></span>
+            </div>
+
+            <form method="post" id="transfer-form">
+                {% csrf_token %}
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="id_recipient_roll_number" style="display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Recipient's Account Number</label>
+                    <input
+                        type="text"
+                        name="recipient_roll_number"
+                        id="id_recipient_roll_number"
+                        maxlength="20"
+                        placeholder="Enter account number"
+                        autocomplete="off"
+                        value="{{ form.recipient_roll_number.value|default:'' }}"
+                        class="input-field"
+                        style="text-transform:uppercase; letter-spacing:0.05em;"
+                    >
+                    {% if form.recipient_roll_number.errors %}
+                    <p style="color: var(--danger); font-size: 0.75rem; margin-top: 0.25rem;">{{ form.recipient_roll_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div id="recipient-preview" class="recipient-preview"></div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="id_amount" style="display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Amount (₹)</label>
+                    <input
+                        type="number"
+                        name="amount"
+                        id="id_amount"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="0.00"
+                        value="{{ form.amount.value|default:'' }}"
+                        class="input-field"
+                        style="font-size:1.5rem; font-weight:700; color: var(--accent);"
+                    >
+                    {% if form.amount.errors %}
+                    <p style="color: var(--danger); font-size: 0.75rem; margin-top: 0.25rem;">{{ form.amount.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="id_description" style="display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Note (optional)</label>
+                    <input
+                        type="text"
+                        name="description"
+                        id="id_description"
+                        maxlength="255"
+                        placeholder="e.g. Rent, Invoice #123"
+                        value="{{ form.description.value|default:'' }}"
+                        class="input-field"
+                    >
+                </div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button type="submit" class="btn btn-primary" style="flex:1; justify-content:center;" id="submit-btn">
+                        <span class="material-symbols-outlined" style="font-size:1rem;">send</span> Send Money
+                    </button>
+                    <a href="{% url 'dashboard:home' %}" class="btn btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function(){
+    const rollInput = document.getElementById('id_recipient_roll_number');
+    const preview   = document.getElementById('recipient-preview');
+    const LOOKUP_URL = "{% url 'ledger:account_lookup' %}";
+    let debounceTimer;
+
+    function setPreview(html, cls) {
+        preview.className = 'recipient-preview ' + (cls || '');
+        preview.innerHTML = html;
+    }
+
+    function lookup(accountNo) {
+        if (!accountNo || accountNo.length < 3) {
+            preview.className = 'recipient-preview';
+            return;
+        }
+        setPreview(`<div class="looking-indicator"><div class="spinner"></div> Looking up <strong>${accountNo}</strong>…</div>`, 'visible');
+
+        fetch(`${LOOKUP_URL}?roll=${encodeURIComponent(accountNo)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.found) {
+                    const initial = data.name.charAt(0).toUpperCase();
+                    setPreview(`
+                        <div class="recipient-avatar">${initial}</div>
+                        <div class="recipient-info">
+                            <div style="font-weight:700; font-size:0.9375rem;">${data.name}</div>
+                            <div style="font-size:0.75rem; color:var(--text-secondary);">${data.branch ? data.branch + ' · ' : ''}${accountNo}</div>
+                        </div>
+                        <span class="badge" style="background:var(--accent-light); color:var(--accent); margin-left:auto;">Verified ✓</span>
+                    `, 'visible');
+                } else if (data.error) {
+                    setPreview(`<span style="color:var(--danger); font-size:0.875rem;">⚠ ${data.error}</span>`, 'visible error-state');
+                } else {
+                    setPreview(`<span style="color:var(--danger); font-size:0.875rem;">⚠ No account found for <strong>${accountNo}</strong></span>`, 'visible error-state');
+                }
+            })
+            .catch(() => {
+                preview.className = 'recipient-preview';
+            });
+    }
+
+    rollInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const val = rollInput.value.trim().toUpperCase();
+        rollInput.value = val;
+        debounceTimer = setTimeout(() => lookup(val), 350);
+    });
+
+    if (rollInput.value.trim()) lookup(rollInput.value.trim().toUpperCase());
+})();
+</script>
+{% endblock %}

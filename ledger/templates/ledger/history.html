@@ -1,0 +1,74 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Transaction History — Kosh{% endblock %}
+
+{% block content %}
+<div class="stagger-item delay-1">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <h1 style="font-size: 1.75rem; font-weight: 700;">Transaction History</h1>
+            <p style="font-size: 0.875rem; color: var(--text-secondary);">{{ account.account_number }}</p>
+        </div>
+        <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm">← Dashboard</a>
+    </div>
+
+    <div class="card" style="overflow-x: auto;">
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="width:50px;"></th>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th style="text-align:right;">Amount</th>
+                    <th style="text-align:right;">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td>
+                        {% if entry.entry_type == 'DEBIT' %}
+                            <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 10px; align-items: center; justify-content: center; background: var(--danger-light); color: var(--danger);">
+                                ↑
+                            </span>
+                        {% else %}
+                            <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 10px; align-items: center; justify-content: center; background: var(--accent-light); color: var(--accent);">
+                                ↓
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="font-weight: 500;">{{ entry.transaction.description|default:"—" }}
+                            {% if entry.transaction.status == "FLAGGED" %}
+                                <span class="badge badge-danger">flagged</span>
+                            {% endif %}
+                        </div>
+                        <span class="cat-badge" style="margin-top: 0.25rem;">{{ entry.transaction.category }}</span>
+                    </td>
+                    <td style="font-size: 0.8125rem; color: var(--text-secondary);">{{ entry.created_at|date:"d M Y, H:i" }}</td>
+                    <td>
+                        <span class="badge {% if entry.entry_type == 'DEBIT' %}badge-danger{% else %}badge-success{% endif %}">
+                            {{ entry.entry_type }}
+                        </span>
+                    </td>
+                    {% if entry.entry_type == 'DEBIT' %}
+                    <td style="text-align:right; font-weight:600; color: var(--danger);">
+                        −₹{{ entry.amount }}
+                    </td>
+                    {% else %}
+                    <td style="text-align:right; font-weight:600; color: var(--success);">
+                        +₹{{ entry.amount }}
+                    </td>
+                    {% endif %}
+                    <td style="text-align:right; font-family: monospace; color: var(--text-secondary);">₹{{ entry.balance_after }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; padding: 3rem; color: var(--text-muted);">No transactions yet</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

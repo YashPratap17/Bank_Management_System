@@ -1,0 +1,178 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Analytics — Kosh{% endblock %}
+
+{% block extra_style %}
+<style>
+    .summary-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 1.25rem;
+        box-shadow: var(--shadow-sm);
+    }
+    .chart-wrapper {
+        position: relative;
+        width: 100%;
+        min-height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stagger-item delay-1">
+    <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem;">Analytics Overview</h1>
+
+    <!-- Summary Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="summary-card">
+            <p style="font-size: 0.75rem; color: var(--text-muted);">TOTAL SPENT</p>
+            <p style="font-size: 1.5rem; font-weight: 700;" id="totalSpent">—</p>
+        </div>
+        <div class="summary-card">
+            <p style="font-size: 0.75rem; color: var(--text-muted);">TOP CATEGORY</p>
+            <p style="font-size: 1.5rem; font-weight: 700;" id="topCategory">—</p>
+        </div>
+        <div class="summary-card">
+            <p style="font-size: 0.75rem; color: var(--text-muted);">PEAK BALANCE</p>
+            <p style="font-size: 1.5rem; font-weight: 700;" id="peakBalance">—</p>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+        <!-- Balance Line Chart -->
+        <div class="card">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Balance over Time</h3>
+            <div class="chart-wrapper">
+                <canvas id="balanceChart"></canvas>
+            </div>
+            <p id="noBalanceMsg" style="text-align: center; padding: 2rem; color: var(--text-muted); display: none;">No transaction history yet.</p>
+        </div>
+
+        <!-- Spend Category Doughnut -->
+        <div class="card">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Spend by Category</h3>
+            <div class="chart-wrapper">
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <p id="noCategoryMsg" style="text-align: center; padding: 2rem; color: var(--text-muted); display: none;">No spending recorded yet.</p>
+        </div>
+    </div>
+</div>
+
+{# Data passed as JSON scripts (same method as home.html) #}
+{{ category_labels|json_script:"category-labels" }}
+{{ category_data|json_script:"category-data" }}
+{{ balance_dates|json_script:"balance-dates" }}
+{{ balance_values|json_script:"balance-values" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function(){
+    // Get data from hidden script elements
+    const catLabels  = JSON.parse(document.getElementById('category-labels').textContent);
+    const catData    = JSON.parse(document.getElementById('category-data').textContent);
+    const balDates   = JSON.parse(document.getElementById('balance-dates').textContent);
+    const balValues  = JSON.parse(document.getElementById('balance-values').textContent);
+
+    const isDark = document.documentElement.classList.contains('dark');
+    Chart.defaults.color = isDark ? '#9ca3af' : '#64748b';
+    Chart.defaults.borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
+
+    // Show/hide empty messages and draw charts accordingly
+    const noBalanceMsg = document.getElementById('noBalanceMsg');
+    const noCategoryMsg = document.getElementById('noCategoryMsg');
+
+    // Update summary numbers
+    if (catData.length) {
+        const total = catData.reduce((a,b) => a+b, 0);
+        const maxIdx = catData.indexOf(Math.max(...catData));
+        document.getElementById('totalSpent').innerText = '₹' + total.toFixed(2);
+        document.getElementById('topCategory').innerText = catLabels[maxIdx] || '—';
+    } else {
+        document.getElementById('totalSpent').innerText = '₹0.00';
+        document.getElementById('topCategory').innerText = '—';
+    }
+
+    if (balValues.length) {
+        const peak = Math.max(...balValues);
+        document.getElementById('peakBalance').innerText = '₹' + peak.toFixed(2);
+    } else {
+        document.getElementById('peakBalance').innerText = '—';
+    }
+
+    // Category Doughnut
+    const catCtx = document.getElementById('categoryChart');
+    if (catLabels.length > 0) {
+        noCategoryMsg.style.display = 'none';
+        const colors = ['#0d9488','#f59e0b','#ef4444','#8b5cf6','#10b981','#f97316','#64748b'];
+        new Chart(catCtx, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    data: catData,
+                    backgroundColor: colors.slice(0, catLabels.length),
+                    borderWidth: 2,
+                    borderColor: isDark ? '#111' : '#fff',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } }
+                }
+            }
+        });
+    } else {
+        // hide canvas and show message
+        catCtx.style.display = 'none';
+        noCategoryMsg.style.display = 'block';
+    }
+
+    // Balance Line
+    const balCtx = document.getElementById('balanceChart');
+    if (balDates.length > 0) {
+        noBalanceMsg.style.display = 'none';
+        const grad = balCtx.getContext('2d').createLinearGradient(0,0,0,300);
+        grad.addColorStop(0, isDark ? 'rgba(13,148,136,0.3)' : 'rgba(13,148,136,0.15)');
+        grad.addColorStop(1, 'rgba(13,148,136,0)');
+        new Chart(balCtx, {
+            type: 'line',
+            data: {
+                labels: balDates,
+                datasets: [{
+                    label: 'Balance',
+                    data: balValues,
+                    borderColor: '#0d9488',
+                    backgroundColor: grad,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } },
+                    y: { grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }, beginAtZero: true }
+                }
+            }
+        });
+    } else {
+        balCtx.style.display = 'none';
+        noBalanceMsg.style.display = 'block';
+    }
+
+    window.addEventListener('themechange', () => location.reload());
+})();
+</script>
+{% endblock %}

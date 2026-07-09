@@ -1,0 +1,43 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Risk Dashboard{% endblock %}
+{% block content %}
+<h2>Risk Dashboard</h2>
+<p class="muted">Transactions flagged by rule-based fraud scoring, scored against each account's own history.</p>
+
+<h3 style="margin-top:28px;">Flagged transactions</h3>
+{% for tx in flagged %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between;">
+        <strong class="status-flagged">Risk score: {{ tx.ai_risk_score|floatformat:2 }}</strong>
+        <span class="muted">{{ tx.created_at|date:"d M Y, H:i" }}</span>
+    </div>
+    <p>{{ tx.description }} — <span class="muted">{{ tx.tx_type }}</span></p>
+    <ul class="muted">
+        {% for reason in tx.ai_risk_reasons %}
+        <li>{{ reason }}</li>
+        {% endfor %}
+    </ul>
+    <p class="muted">
+        Account(s):
+        {% for entry in tx.entries.all %}
+            {{ entry.account.masked_number }} ({{ entry.account.customer.full_name }}){% if not forloop.last %}, {% endif %}
+        {% endfor %}
+    </p>
+</div>
+{% empty %}
+<p class="muted">No flagged transactions.</p>
+{% endfor %}
+
+<h3 style="margin-top:28px;">Watchlist (elevated score, not yet flagged)</h3>
+{% for tx in watchlist %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between;">
+        <strong>Risk score: {{ tx.ai_risk_score|floatformat:2 }}</strong>
+        <span class="muted">{{ tx.created_at|date:"d M Y, H:i" }}</span>
+    </div>
+    <p>{{ tx.description }} — <span class="muted">{{ tx.tx_type }}</span></p>
+</div>
+{% empty %}
+<p class="muted">Nothing on the watchlist.</p>
+{% endfor %}
+{% endblock %}
