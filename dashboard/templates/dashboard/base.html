@@ -378,12 +378,15 @@
 
         /* Responsive */
         @media (max-width: 768px) {
+            html, body { overflow-x: hidden; }
             .navbar { padding: 0 1rem; }
             .nav-links { display: none; }
             .mobile-menu-toggle { display: flex; }
+            .card { padding: 1.25rem; }
         }
         @media (max-width: 480px) {
-            .main-content { padding-left: 1rem; padding-right: 1rem; }
+            .main-content { padding-left: 1rem; padding-right: 1rem; padding-top: calc(var(--nav-height) + 1rem); }
+            .card { padding: 1rem; }
             .toast-container { left: 1rem; right: 1rem; top: 4.5rem; }
             .toast-container .toast { width: 100%; }
         }

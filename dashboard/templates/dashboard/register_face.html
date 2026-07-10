@@ -2,8 +2,8 @@
 {% block title %}Face Registration — Kosh{% endblock %}
 
 {% block extra_style %}
-{{ block.super }}
-<script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
+{# Load face-api early, without defer #}
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -26,19 +26,23 @@
 </div>
 
 <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
+    const video   = document.getElementById('video');
+    const canvas  = document.getElementById('canvas');
     const captureBtn = document.getElementById('capture-btn');
-    const statusMsg = document.getElementById('status-msg');
+    const statusMsg  = document.getElementById('status-msg');
+
     let stream = null;
     let modelsReady = false;
 
+    // ---------- 1. Load face‑api models ----------
     async function loadModels() {
+        console.log('[register] Waiting for faceapi...');
+        // Wait until the global faceapi object exists (script may still be loading)
         while (typeof faceapi === 'undefined') {
             await new Promise(r => setTimeout(r, 200));
         }
+        console.log('[register] faceapi found, loading models...');
         const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
-        statusMsg.textContent = 'Loading face models...';
         try {
             await Promise.all([
                 faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
@@ -48,57 +52,75 @@
             modelsReady = true;
             captureBtn.disabled = false;
             statusMsg.textContent = 'Models loaded. Please capture your face.';
+            console.log('[register] Models loaded successfully.');
         } catch (e) {
-            statusMsg.textContent = 'Model load failed.';
-            console.error(e);
+            statusMsg.textContent = 'Failed to load face models. Please refresh.';
+            console.error('[register] Model load error:', e);
         }
     }
 
+    // ---------- 2. Start camera ----------
     async function startCamera() {
         try {
             stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
+            console.log('[register] Camera started.');
         } catch (err) {
             statusMsg.textContent = 'Camera access denied.';
             captureBtn.disabled = true;
-            console.error(err);
+            console.error('[register] Camera error:', err);
         }
     }
 
+    // ---------- 3. Capture and send ----------
     async function capture() {
-        console.log('Capture button clicked');
-        if (!modelsReady) { statusMsg.textContent = 'Models not ready.'; return; }
-        if (video.readyState < 2) { statusMsg.textContent = 'Camera not ready.'; return; }
+        console.log('[register] Capture button clicked');
+        if (!modelsReady) {
+            statusMsg.textContent = 'Models not ready yet.';
+            return;
+        }
+        if (video.readyState < 2) {
+            statusMsg.textContent = 'Camera not ready. Wait a moment.';
+            return;
+        }
 
         statusMsg.textContent = 'Capturing...';
-        canvas.width = video.videoWidth;
+        // Match canvas size to actual video size
+        canvas.width  = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        console.log('Canvas drawn, size:', canvas.width, canvas.height);
+        console.log('[register] Canvas drawn, size:', canvas.width, canvas.height);
 
+        // Timeout safety
         const timeout = setTimeout(() => {
-            statusMsg.textContent = 'Detection timed out. Check lighting and try again.';
-            console.warn('Detection timed out');
-        }, 8000);
+            statusMsg.textContent = 'Detection timed out. Check lighting / camera.';
+            console.warn('[register] Detection timed out');
+        }, 10000);
 
         try {
             const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks().withFaceDescriptor();
             clearTimeout(timeout);
-            console.log('Detection result:', detection);
+            console.log('[register] Detection result:', detection);
+
             if (!detection) {
                 statusMsg.textContent = 'No face detected. Please try again.';
                 return;
             }
+
             const descriptor = Array.from(detection.descriptor);
             const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const resp = await fetch('{% url "api_register_face" %}', {
+            const response = await fetch('{% url "api_register_face" %}', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                body: JSON.stringify({ descriptor })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify({ descriptor: descriptor })
             });
-            const data = await resp.json();
-            console.log('Register response:', data);
+            const data = await response.json();
+            console.log('[register] Server response:', data);
+
             if (data.success) {
                 statusMsg.textContent = 'Face registered successfully! Redirecting...';
                 setTimeout(() => { window.location.href = '{% url "dashboard:home" %}'; }, 1500);
@@ -108,14 +130,16 @@
         } catch (err) {
             clearTimeout(timeout);
             statusMsg.textContent = 'Error: ' + err.message;
-            console.error(err);
+            console.error('[register] Capture error:', err);
         }
     }
 
+    // ---------- 4. Kick everything off ----------
     (async () => {
-        await loadModels();
+        await loadModels();   // will enable button when ready
         await startCamera();
         captureBtn.addEventListener('click', capture);
+        console.log('[register] Initialization complete.');
     })();
 </script>
 {% endblock %}

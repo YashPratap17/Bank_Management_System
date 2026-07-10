@@ -144,6 +144,7 @@
 
 
 import json
+import os
 import uuid
 import base64
 import re
@@ -155,9 +156,28 @@ from cryptography.fernet import Fernet
 
 
 def get_fernet():
-    # Derive a stable key from SECRET_KEY (must be exactly 32 url-safe base64 bytes)
-    secret = settings.SECRET_KEY
-    key = base64.urlsafe_b64encode(secret[:32].encode().ljust(32, b'='))
+    """
+    Build a stable Fernet key for encrypting face descriptors.
+
+    Priority:
+      1. FACE_ENCRYPTION_KEY env var — a raw 32-byte value used as a stable,
+         environment-independent key.  Set this on Render (and locally) so
+         that descriptors registered in one environment can be verified in
+         another.  Generate once with:
+             python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+         then store the output as the FACE_ENCRYPTION_KEY env var.
+      2. SECRET_KEY fallback — works for single-environment dev, but will
+         break cross-environment decryption if SECRET_KEY differs.
+    """
+    raw_key = os.environ.get('FACE_ENCRYPTION_KEY')
+    if raw_key:
+        # Ensure the key is properly padded url-safe base64 (Fernet requires
+        # exactly 32 bytes of key material encoded as url-safe base64).
+        key = raw_key.encode() if isinstance(raw_key, str) else raw_key
+    else:
+        # Fallback: derive from SECRET_KEY (same environment only)
+        secret = settings.SECRET_KEY
+        key = base64.urlsafe_b64encode(secret[:32].encode().ljust(32, b'='))
     return Fernet(key)
 
 

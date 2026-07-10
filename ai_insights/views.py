@@ -6,6 +6,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.models import Customer
 from ledger.models import Transaction
+from ledger.services import deposit
+from decimal import Decimal
 
 
 @staff_member_required
@@ -51,6 +53,12 @@ def approve_customer(request, customer_id):
     customer.approved_by = request.user
     customer.approved_at = timezone.now()
     customer.save()
+
+    # Provide 5000 opening balance to any new accounts
+    for account in customer.accounts.all():
+        if account.get_balance() == 0:
+            deposit(account, Decimal("5000.00"), "Welcome Bonus / Opening Balance")
+
     messages.success(request, f"Approved {customer.full_name} ({customer.roll_number}).")
     return redirect("ai_insights:approvals_dashboard")
 

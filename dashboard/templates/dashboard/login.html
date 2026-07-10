@@ -3,7 +3,7 @@
 
 {% block extra_style %}
 {{ block.super }}
-<script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -45,7 +45,7 @@
     <div id="face-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center;">
         <div style="background: var(--surface); border-radius: 1rem; padding: 2rem; text-align: center; max-width: 400px;">
             <h3 style="margin-bottom: 1rem;">Face Recognition</h3>
-            <video id="face-video" width="280" height="210" autoplay muted playsinline style="background:#000; border-radius:8px;"></video>
+            <video id="face-video" width="320" height="240" autoplay muted playsinline style="background:#000; border-radius:8px;"></video>
             <canvas id="face-canvas" style="display:none;"></canvas>
             <p id="face-status" style="font-size:0.8rem; margin:0.75rem 0;">Loading face models...</p>
             <div style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -61,11 +61,17 @@
 <script>
     let modelsReady = false;
     let faceStream = null;
+    let scanningInterval = null;
+    let isVerifying = false;
+
     const faceModal = document.getElementById('face-modal');
     const videoEl = document.getElementById('face-video');
     const canvasEl = document.getElementById('face-canvas');
     const statusP = document.getElementById('face-status');
     const captureBtn = document.getElementById('capture-face-btn');
+
+    // Hide the manual capture button since we will auto-scan
+    captureBtn.style.display = 'none';
 
     async function loadModels() {
         while (typeof faceapi === 'undefined') {
@@ -80,71 +86,110 @@
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
             modelsReady = true;
-            captureBtn.disabled = false;
-            statusP.textContent = 'Ready. Please capture your face.';
+            statusP.textContent = 'Models loaded. Ready.';
         } catch (e) {
-            statusP.textContent = 'Failed to load models.';
+            statusP.textContent = 'Failed to load face models. Check your internet connection.';
             console.error(e);
         }
     }
 
     loadModels();
 
+    async function startContinuousScanning() {
+        if (scanningInterval) clearInterval(scanningInterval);
+        
+        scanningInterval = setInterval(async () => {
+            if (!modelsReady || !videoEl.srcObject || videoEl.videoWidth === 0 || isVerifying) {
+                return; // Wait until ready or if currently verifying
+            }
+
+            // Capture the current video frame to canvas
+            canvasEl.width  = videoEl.videoWidth;
+            canvasEl.height = videoEl.videoHeight;
+            const ctx = canvasEl.getContext('2d');
+            ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+
+            try {
+                const detection = await faceapi
+                    .detectSingleFace(canvasEl)
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detection && !isVerifying) {
+                    // Face found! Stop scanning and verify
+                    isVerifying = true;
+                    statusP.innerHTML = '<span style="color: var(--accent);">Face detected! Verifying identity...</span>';
+                    
+                    const descriptor = Array.from(detection.descriptor);
+                    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                    const csrf = csrfInput ? csrfInput.value : '';
+
+                    const resp = await fetch('{% url "api_face_login" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrf,
+                        },
+                        body: JSON.stringify({ descriptor }),
+                    });
+
+                    const data = await resp.json();
+                    
+                    if (data.success) {
+                        statusP.innerHTML = '<span style="color: #10b981;">✅ Login successful! Redirecting...</span>';
+                        if (scanningInterval) clearInterval(scanningInterval);
+                        if (faceStream) faceStream.getTracks().forEach(t => t.stop());
+                        setTimeout(() => { window.location.href = data.redirect || '/'; }, 800);
+                    } else {
+                        statusP.innerHTML = `<span style="color: #ef4444;">❌ ${data.error || 'Face not recognised.'}</span> Retrying...`;
+                        // Wait a moment before resuming scanning so the user can read the message
+                        setTimeout(() => { isVerifying = false; }, 2500);
+                    }
+                }
+            } catch (err) {
+                console.error("Scanning error:", err);
+            }
+        }, 800); // Scan every 800ms
+    }
+
     document.getElementById('face-login-btn').addEventListener('click', async () => {
         faceModal.style.display = 'flex';
-        while (!modelsReady) {
-            await new Promise(r => setTimeout(r, 200));
-        }
+        statusP.textContent = 'Starting camera...';
+        isVerifying = false;
+
         try {
             faceStream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoEl.srcObject = faceStream;
-            statusP.textContent = 'Position your face and click Scan Face.';
+
+            // Wait until the video is actually playing
+            await new Promise((resolve, reject) => {
+                if (videoEl.readyState >= 2) resolve();
+                else {
+                    videoEl.onloadeddata = resolve;
+                    setTimeout(() => reject(new Error('Camera init timed out')), 10000);
+                }
+            });
+            await videoEl.play();
         } catch (err) {
-            statusP.textContent = 'Camera permission denied.';
+            statusP.textContent = 'Camera not available: ' + err.message;
+            console.error(err);
+            return;
         }
+
+        if (!modelsReady) {
+            statusP.textContent = 'Waiting for face models to finish loading...';
+            while (!modelsReady) await new Promise(r => setTimeout(r, 300));
+        }
+        
+        statusP.textContent = 'Position your face clearly in view. Scanning automatically...';
+        startContinuousScanning();
     });
 
     document.getElementById('close-face-modal').addEventListener('click', () => {
         faceModal.style.display = 'none';
-        if (faceStream) faceStream.getTracks().forEach(t => t.stop());
-    });
-
-    captureBtn.addEventListener('click', async () => {
-        if (!modelsReady) { statusP.textContent = 'Models not ready.'; return; }
-        if (videoEl.readyState < 2) { statusP.textContent = 'Camera not ready.'; return; }
-
-        statusP.textContent = 'Capturing...';
-        canvasEl.width = videoEl.videoWidth;
-        canvasEl.height = videoEl.videoHeight;
-        const ctx = canvasEl.getContext('2d');
-        ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
-
-        const timeout = setTimeout(() => { statusP.textContent = 'Detection timed out.'; }, 8000);
-        try {
-            const detection = await faceapi.detectSingleFace(canvasEl).withFaceLandmarks().withFaceDescriptor();
-            clearTimeout(timeout);
-            if (!detection) { statusP.textContent = 'No face detected.'; return; }
-
-            const descriptor = Array.from(detection.descriptor);
-            const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const resp = await fetch('{% url "api_face_login" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ descriptor })
-            });
-            const data = await resp.json();
-            console.log('Face login response:', data);
-            if (data.success) {
-                statusP.textContent = 'Login successful!';
-                setTimeout(() => { window.location.href = data.redirect || '/'; }, 1000);
-            } else {
-                statusP.textContent = data.error || 'Face not recognized';
-            }
-        } catch (err) {
-            clearTimeout(timeout);
-            statusP.textContent = 'Error: ' + err.message;
-            console.error(err);
-        }
+        if (scanningInterval) clearInterval(scanningInterval);
+        isVerifying = false;
+        if (faceStream) { faceStream.getTracks().forEach(t => t.stop()); faceStream = null; }
     });
 </script>
 {% endblock %}
