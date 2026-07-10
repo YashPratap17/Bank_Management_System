@@ -2,102 +2,26 @@
 {% block title %}Face Registration — Kosh{% endblock %}
 
 {% block extra_style %}
-<style>
-    .face-setup-card {
-        max-width: 460px;
-        margin: 2rem auto;
-    }
-    .face-setup-eyebrow {
-        display: inline-flex; align-items: center; gap: 0.4rem;
-        font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-        color: var(--accent); margin-bottom: 0.6rem;
-    }
-    .face-setup-eyebrow .material-symbols-outlined { font-size: 1rem; }
-
-    .video-frame {
-        position: relative;
-        width: 320px; max-width: 100%;
-        margin: 0 auto 1.25rem;
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-        background: #000;
-        box-shadow: var(--shadow-md);
-    }
-    .video-frame video {
-        display: block;
-        width: 100%; height: auto;
-        border-radius: var(--radius-lg);
-        background: #000;
-    }
-    /* Purely decorative scan-corner reticle — no effect on the underlying
-       video/canvas elements or their pixel dimensions */
-    .video-frame::before, .video-frame::after,
-    .video-frame .corner-tl, .video-frame .corner-br {
-        content: "";
-        position: absolute;
-        width: 22px; height: 22px;
-        border-color: rgba(255,255,255,0.55);
-        pointer-events: none;
-    }
-    .video-frame::before { top: 8px; left: 8px; border-top: 2px solid; border-left: 2px solid; border-radius: 4px 0 0 0; }
-    .video-frame::after { bottom: 8px; right: 8px; border-bottom: 2px solid; border-right: 2px solid; border-radius: 0 0 4px 0; }
-
-    .status-pill {
-        display: inline-flex; align-items: center; gap: 0.4rem;
-        font-size: 0.8rem; font-weight: 500;
-        color: var(--text-secondary);
-        background: var(--surface-hover);
-        border: 1px solid var(--border);
-        border-radius: 2rem;
-        padding: 0.4rem 0.9rem;
-        margin-top: 1rem;
-        min-height: 1.2rem;
-        transition: color 0.2s ease;
-    }
-
-    .face-setup-actions {
-        display: flex; flex-direction: column; gap: 0.6rem;
-        margin-top: 1.5rem;
-    }
-    .face-setup-actions .btn-primary { width: 100%; justify-content: center; padding: 0.8rem; font-size: 0.95rem; }
-    .face-setup-actions .skip-link {
-        text-align: center; font-size: 0.8125rem;
-        color: var(--text-muted); text-decoration: none;
-    }
-    .face-setup-actions .skip-link:hover { color: var(--text-secondary); }
-</style>
+{{ block.super }}
+<script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="stagger-item delay-1 card face-setup-card">
-    <div class="face-setup-eyebrow">
-        <span class="material-symbols-outlined">verified_user</span>
-        Optional · Biometric login
-    </div>
-    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Set up Face Login</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem; line-height:1.55;">
-        For faster and more secure login, we can recognize your face. This is optional —
-        you can always use your password instead.
-    </p>
-
-    <div class="video-frame">
-        <video id="video" width="320" height="240" autoplay muted></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-    </div>
-
-    <div style="text-align:center;">
-        <span class="status-pill" id="status-msg-wrap">
-            <span class="material-symbols-outlined" style="font-size:1rem;">face</span>
-            <span id="status-msg"></span>
-        </span>
-    </div>
-
-    <div class="face-setup-actions">
-        <button id="capture-btn" class="btn btn-primary">
-            <span class="material-symbols-outlined" style="font-size:1.1rem;">photo_camera</span>
-            Capture Face
-        </button>
-        <a href="{% url 'dashboard:home' %}" class="skip-link">Skip for now</a>
+<div class="stagger-item delay-1" style="max-width: 500px; margin: 2rem auto;">
+    <div class="card">
+        <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Set Up Face Login</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+            For faster and more secure login, we can recognize your face. This is optional — you can always use your password.
+        </p>
+        <div style="margin-bottom: 1rem; text-align: center;">
+            <video id="video" width="320" height="240" autoplay muted playsinline style="border-radius: 8px; background: #000;"></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button id="capture-btn" class="btn btn-primary" style="flex:1;" disabled>Capture Face</button>
+            <a href="{% url 'dashboard:home' %}" class="btn btn-ghost">Skip</a>
+        </div>
+        <p id="status-msg" style="font-size: 0.75rem; margin-top: 0.75rem; color: var(--text-muted);">Loading face models...</p>
     </div>
 </div>
 
@@ -108,6 +32,23 @@
     const statusMsg = document.getElementById('status-msg');
 
     let stream = null;
+    let modelsReady = false;
+
+    async function loadModels() {
+        while (typeof faceapi === 'undefined') {
+            await new Promise(r => setTimeout(r, 200));
+        }
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
+        statusMsg.textContent = 'Loading face models...';
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        modelsReady = true;
+        captureBtn.disabled = false;
+        statusMsg.textContent = 'Models loaded. Please capture your face.';
+    }
 
     async function startCamera() {
         try {
@@ -119,25 +60,29 @@
         }
     }
 
-    async function loadModels() {
-        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
-        statusMsg.textContent = 'Loading face models...';
-        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        statusMsg.textContent = 'Models loaded. Please capture your face.';
-    }
-
     async function capture() {
+        if (!modelsReady) {
+            statusMsg.textContent = 'Models not ready yet.';
+            return;
+        }
+        if (video.readyState < 2) {
+            statusMsg.textContent = 'Camera not ready. Wait a moment.';
+            return;
+        }
         statusMsg.textContent = 'Processing...';
-        canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
         const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks().withFaceDescriptor();
         if (!detection) {
             statusMsg.textContent = 'No face detected. Please try again.';
             return;
         }
         const descriptor = Array.from(detection.descriptor);
-        // send to server
+
         const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const response = await fetch('{% url "api_register_face" %}', {
             method: 'POST',
@@ -157,8 +102,8 @@
     }
 
     (async () => {
-        await startCamera();
         await loadModels();
+        await startCamera();
         captureBtn.addEventListener('click', capture);
     })();
 </script>

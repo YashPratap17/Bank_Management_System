@@ -3,7 +3,6 @@
 
 {% block extra_style %}
 {{ block.super }}
-<!-- Preload face-api library early -->
 <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
 {% endblock %}
 
@@ -60,7 +59,6 @@
 
 {% block extra_script %}
 <script>
-    // Global state
     let modelsReady = false;
     let faceStream = null;
     const faceModal = document.getElementById('face-modal');
@@ -69,9 +67,7 @@
     const statusP = document.getElementById('face-status');
     const captureBtn = document.getElementById('capture-face-btn');
 
-    // Load face-api models as soon as page is ready
     async function loadModels() {
-        statusP.textContent = 'Loading face SDK...';
         while (typeof faceapi === 'undefined') {
             await new Promise(r => setTimeout(r, 200));
         }
@@ -87,15 +83,13 @@
             captureBtn.disabled = false;
             statusP.textContent = 'Ready. Please capture your face.';
         } catch (e) {
-            statusP.textContent = 'Failed to load models. Refresh and try again.';
+            statusP.textContent = 'Failed to load models.';
             console.error(e);
         }
     }
 
-    // Start loading models immediately
     loadModels();
 
-    // Open modal and start camera
     document.getElementById('face-login-btn').addEventListener('click', async () => {
         faceModal.style.display = 'flex';
         while (!modelsReady) {
@@ -110,60 +104,38 @@
         }
     });
 
-    // Close modal
     document.getElementById('close-face-modal').addEventListener('click', () => {
         faceModal.style.display = 'none';
-        if (faceStream) {
-            faceStream.getTracks().forEach(t => t.stop());
-        }
+        if (faceStream) faceStream.getTracks().forEach(t => t.stop());
     });
 
-    // Capture and send face
     captureBtn.addEventListener('click', async () => {
-        if (!modelsReady) {
-            statusP.textContent = 'Models not ready yet. Please wait.';
-            return;
-        }
-        // Ensure video is playing and ready
-        if (videoEl.readyState < 2) {
-            statusP.textContent = 'Camera not ready. Wait a moment.';
-            return;
-        }
+        if (!modelsReady) { statusP.textContent = 'Models not ready.'; return; }
+        if (videoEl.readyState < 2) { statusP.textContent = 'Camera not ready.'; return; }
 
         statusP.textContent = 'Capturing...';
-        // Set canvas dimensions to match video
         canvasEl.width = videoEl.videoWidth;
         canvasEl.height = videoEl.videoHeight;
         const ctx = canvasEl.getContext('2d');
         ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
 
-        // Timeout fallback
-        const timeout = setTimeout(() => {
-            statusP.textContent = 'Detection timed out. Check lighting and try again.';
-        }, 8000);
-
+        const timeout = setTimeout(() => { statusP.textContent = 'Detection timed out.'; }, 8000);
         try {
             const detection = await faceapi.detectSingleFace(canvasEl).withFaceLandmarks().withFaceDescriptor();
             clearTimeout(timeout);
+            if (!detection) { statusP.textContent = 'No face detected.'; return; }
 
-            if (!detection) {
-                statusP.textContent = 'No face detected. Please try again.';
-                return;
-            }
             const descriptor = Array.from(detection.descriptor);
             const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
             const resp = await fetch('{% url "api_face_login" %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrf,
-                },
-                body: JSON.stringify({ descriptor: descriptor })
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                body: JSON.stringify({ descriptor })
             });
             const data = await resp.json();
             console.log('Face login response:', data);
             if (data.success) {
-                statusP.textContent = 'Login successful! Redirecting...';
+                statusP.textContent = 'Login successful!';
                 setTimeout(() => { window.location.href = data.redirect || '/'; }, 1000);
             } else {
                 statusP.textContent = data.error || 'Face not recognized';
