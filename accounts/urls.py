@@ -5,7 +5,6 @@ from . import views
 
 urlpatterns = [
     # Face registration page (webcam)
-    path('api/test/', views.test_face, name='test_face'),
     path('register-face/', views.register_face, name='register_face'),
 
     # API endpoints for face data
