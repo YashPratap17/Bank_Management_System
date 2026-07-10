@@ -1,6 +1,12 @@
 {% extends "dashboard/base.html" %}
 {% block title %}Sign In — Kosh{% endblock %}
 
+{% block extra_style %}
+{{ block.super }}
+<!-- Preload face-api library early -->
+<script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
+{% endblock %}
+
 {% block content %}
 <div style="max-width: 400px; margin: 4rem auto;">
     <div class="card" style="text-align: center;">
@@ -31,6 +37,9 @@
             <span class="material-symbols-outlined" style="font-size:1rem;">face</span> Sign in with Face
         </button>
 
+        <!-- Temporary test POST button -->
+        <button id="test-post-btn" class="btn btn-ghost" style="width:100%; margin-top:0.5rem;">Test POST</button>
+
         <p style="margin-top: 1rem; font-size: 0.875rem;">
             Don't have an account? <a href="{% url 'dashboard:register' %}" style="color: var(--accent); font-weight: 600;">Register</a>
         </p>
@@ -42,9 +51,9 @@
             <h3 style="margin-bottom: 1rem;">Face Recognition</h3>
             <video id="face-video" width="280" height="210" autoplay muted style="background:#000; border-radius:8px;"></video>
             <canvas id="face-canvas" style="display:none;"></canvas>
-            <p id="face-status" style="font-size:0.8rem; margin:0.75rem 0;"></p>
+            <p id="face-status" style="font-size:0.8rem; margin:0.75rem 0;">Loading face models...</p>
             <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                <button id="capture-face-btn" class="btn btn-primary">Scan Face</button>
+                <button id="capture-face-btn" class="btn btn-primary" disabled>Scan Face</button>
                 <button id="close-face-modal" class="btn btn-ghost">Cancel</button>
             </div>
         </div>
@@ -54,23 +63,21 @@
 
 {% block extra_script %}
 <script>
-    // Face login flow
+    // Global state
+    let modelsReady = false;
+    let faceStream = null;
     const faceModal = document.getElementById('face-modal');
     const videoEl = document.getElementById('face-video');
     const canvasEl = document.getElementById('face-canvas');
     const statusP = document.getElementById('face-status');
-    let faceStream = null;
+    const captureBtn = document.getElementById('capture-face-btn');
 
-    // Load face-api models globally if not already loaded
-    async function ensureModels() {
-        if (typeof faceapi === 'undefined') {
-            statusP.textContent = 'Loading face SDK...';
-            await new Promise((resolve) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js';
-                script.onload = resolve;
-                document.head.appendChild(script);
-            });
+    // Load face-api models as soon as page is ready
+    async function loadModels() {
+        statusP.textContent = 'Loading face SDK...';
+        // The script tag is already in <head>, wait for it to initialize
+        while (typeof faceapi === 'undefined') {
+            await new Promise(r => setTimeout(r, 200));
         }
         const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
         statusP.textContent = 'Loading face models...';
@@ -79,25 +86,51 @@
             faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
             faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
         ]);
-        statusP.textContent = '';
+        modelsReady = true;
+        captureBtn.disabled = false;
+        statusP.textContent = 'Ready. Please capture your face.';
     }
 
-    async function initFaceModal() {
-        await ensureModels();
+    // Start loading models immediately (in background)
+    loadModels();
+
+    // Temporary test POST button
+    document.getElementById('test-post-btn').addEventListener('click', async () => {
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const dummyDescriptor = new Array(128).fill(0.5);   // 128 random-ish floats
+        try {
+            const resp = await fetch('{% url "api_face_login" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf,
+                },
+                body: JSON.stringify({ descriptor: dummyDescriptor })
+            });
+            const data = await resp.json();
+            alert(JSON.stringify(data));
+        } catch (err) {
+            alert('Network error: ' + err.message);
+        }
+    });
+
+    // Open modal and start camera
+    document.getElementById('face-login-btn').addEventListener('click', async () => {
+        faceModal.style.display = 'flex';
+        // Ensure models are loaded before trying to use camera
+        while (!modelsReady) {
+            await new Promise(r => setTimeout(r, 200));
+        }
         try {
             faceStream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoEl.srcObject = faceStream;
-            statusP.textContent = '';
+            statusP.textContent = 'Position your face and click Scan Face.';
         } catch (err) {
             statusP.textContent = 'Camera permission denied.';
         }
-    }
-
-    document.getElementById('face-login-btn').addEventListener('click', async () => {
-        faceModal.style.display = 'flex';
-        await initFaceModal();
     });
 
+    // Close modal
     document.getElementById('close-face-modal').addEventListener('click', () => {
         faceModal.style.display = 'none';
         if (faceStream) {
@@ -105,30 +138,42 @@
         }
     });
 
-    document.getElementById('capture-face-btn').addEventListener('click', async () => {
-        statusP.textContent = 'Capturing...';
-        canvasEl.getContext('2d').drawImage(videoEl, 0, 0, 280, 210);
-        const detection = await faceapi.detectSingleFace(canvasEl).withFaceLandmarks().withFaceDescriptor();
-        if (!detection) {
-            statusP.textContent = 'No face detected. Please try again.';
+    // Capture and send face
+    captureBtn.addEventListener('click', async () => {
+        if (!modelsReady) {
+            statusP.textContent = 'Models not ready yet. Please wait.';
             return;
         }
-        const descriptor = Array.from(detection.descriptor);
-        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const resp = await fetch('{% url "api_face_login" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrf,
-            },
-            body: JSON.stringify({ descriptor: descriptor })
-        });
-        const data = await resp.json();
-        if (data.success) {
-            statusP.textContent = 'Login successful! Redirecting...';
-            setTimeout(() => { window.location.href = data.redirect || '/'; }, 1000);
-        } else {
-            statusP.textContent = 'Face not recognized. Use password.';
+        statusP.textContent = 'Capturing...';
+        canvasEl.getContext('2d').drawImage(videoEl, 0, 0, 280, 210);
+        try {
+            const detection = await faceapi.detectSingleFace(canvasEl).withFaceLandmarks().withFaceDescriptor();
+            if (!detection) {
+                statusP.textContent = 'No face detected. Please try again.';
+                return;
+            }
+            const descriptor = Array.from(detection.descriptor);
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const resp = await fetch('{% url "api_face_login" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf,
+                },
+                body: JSON.stringify({ descriptor: descriptor })
+            });
+            const data = await resp.json();
+            console.log('Face login response:', data);
+            if (data.success) {
+                statusP.textContent = 'Login successful! Redirecting...';
+                setTimeout(() => { window.location.href = data.redirect || '/'; }, 1000);
+            } else {
+                // Show similarity score if available
+                const msg = data.error || 'Face not recognized';
+                statusP.textContent = msg;
+            }
+        } catch (err) {
+            statusP.textContent = 'Error: ' + err.message;
         }
     });
 </script>
