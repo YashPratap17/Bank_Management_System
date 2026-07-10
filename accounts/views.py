@@ -37,33 +37,63 @@ def cosine_similarity(a, b):
     """Return cosine similarity between two vectors."""
     return np.dot(a, b) / (norm(a) * norm(b))
 
-@csrf_exempt  # use CSRF token in production, but for AJAX it's fine with token in header
+# @csrf_exempt  # use CSRF token in production, but for AJAX it's fine with token in header
+# def api_face_login(request):
+#     """Login by matching face descriptor using cosine similarity."""
+#     if request.method == 'POST':
+#         try:
+#             data = json.loads(request.body)
+#             descriptor = data.get('descriptor')
+#             if not descriptor or len(descriptor) != 128:
+#                 return JsonResponse({'success': False, 'error': 'Invalid descriptor'})
+#             input_vec = np.array(descriptor)
+#             best_match = None
+#             best_similarity = -1.0       # cosine similarity ranges from -1 to 1
+#             threshold = 0.7              # 0.7 works well; higher = stricter
+
+#             # Compare with all stored face profiles
+#             for profile in FaceProfile.objects.select_related('user').all():
+#                 stored_vec = np.array(profile.get_descriptor())
+#                 sim = cosine_similarity(input_vec, stored_vec)
+#                 if sim > threshold and sim > best_similarity:
+#                     best_similarity = sim
+#                     best_match = profile.user
+
+#             if best_match:
+#                 login(request, best_match)
+#                 return JsonResponse({'success': True, 'redirect': '/'})
+#             else:
+#                 return JsonResponse({'success': False, 'error': 'Face not recognized'})
+#         except Exception as e:
+#             return JsonResponse({'success': False, 'error': str(e)})
+#     return JsonResponse({'success': False, 'error': 'Invalid method'})
+@csrf_exempt
 def api_face_login(request):
-    """Login by matching face descriptor using cosine similarity."""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             descriptor = data.get('descriptor')
             if not descriptor or len(descriptor) != 128:
                 return JsonResponse({'success': False, 'error': 'Invalid descriptor'})
+
             input_vec = np.array(descriptor)
             best_match = None
-            best_similarity = -1.0       # cosine similarity ranges from -1 to 1
-            threshold = 0.7              # 0.7 works well; higher = stricter
+            best_similarity = -1.0
+            profiles_checked = 0
 
-            # Compare with all stored face profiles
             for profile in FaceProfile.objects.select_related('user').all():
                 stored_vec = np.array(profile.get_descriptor())
                 sim = cosine_similarity(input_vec, stored_vec)
-                if sim > threshold and sim > best_similarity:
+                profiles_checked += 1
+                if sim > best_similarity:
                     best_similarity = sim
                     best_match = profile.user
 
-            if best_match:
-                login(request, best_match)
-                return JsonResponse({'success': True, 'redirect': '/'})
-            else:
-                return JsonResponse({'success': False, 'error': 'Face not recognized'})
+            # Diagnostic info (remove in production)
+            return JsonResponse({
+                'success': False,
+                'error': f'Best similarity: {best_similarity:.4f}, Profiles checked: {profiles_checked}, Threshold needed: 0.7'
+            })
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid method'})
