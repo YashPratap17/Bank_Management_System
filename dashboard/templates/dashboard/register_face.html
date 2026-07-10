@@ -30,7 +30,6 @@
     const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('capture-btn');
     const statusMsg = document.getElementById('status-msg');
-
     let stream = null;
     let modelsReady = false;
 
@@ -40,14 +39,19 @@
         }
         const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
         statusMsg.textContent = 'Loading face models...';
-        await Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
-        modelsReady = true;
-        captureBtn.disabled = false;
-        statusMsg.textContent = 'Models loaded. Please capture your face.';
+        try {
+            await Promise.all([
+                faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+            ]);
+            modelsReady = true;
+            captureBtn.disabled = false;
+            statusMsg.textContent = 'Models loaded. Please capture your face.';
+        } catch (e) {
+            statusMsg.textContent = 'Model load failed.';
+            console.error(e);
+        }
     }
 
     async function startCamera() {
@@ -55,49 +59,56 @@
             stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
         } catch (err) {
-            statusMsg.textContent = 'Camera access denied. You can skip face setup.';
+            statusMsg.textContent = 'Camera access denied.';
             captureBtn.disabled = true;
+            console.error(err);
         }
     }
 
     async function capture() {
-        if (!modelsReady) {
-            statusMsg.textContent = 'Models not ready yet.';
-            return;
-        }
-        if (video.readyState < 2) {
-            statusMsg.textContent = 'Camera not ready. Wait a moment.';
-            return;
-        }
-        statusMsg.textContent = 'Processing...';
+        console.log('Capture button clicked');
+        if (!modelsReady) { statusMsg.textContent = 'Models not ready.'; return; }
+        if (video.readyState < 2) { statusMsg.textContent = 'Camera not ready.'; return; }
 
+        statusMsg.textContent = 'Capturing...';
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        console.log('Canvas drawn, size:', canvas.width, canvas.height);
 
-        const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks().withFaceDescriptor();
-        if (!detection) {
-            statusMsg.textContent = 'No face detected. Please try again.';
-            return;
-        }
-        const descriptor = Array.from(detection.descriptor);
+        const timeout = setTimeout(() => {
+            statusMsg.textContent = 'Detection timed out. Check lighting and try again.';
+            console.warn('Detection timed out');
+        }, 8000);
 
-        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const response = await fetch('{% url "api_register_face" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrftoken,
-            },
-            body: JSON.stringify({ descriptor: descriptor })
-        });
-        const data = await response.json();
-        if (data.success) {
-            statusMsg.textContent = 'Face registered successfully! Redirecting...';
-            setTimeout(() => { window.location.href = '{% url "dashboard:home" %}'; }, 1500);
-        } else {
-            statusMsg.textContent = 'Error: ' + (data.error || 'something went wrong');
+        try {
+            const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks().withFaceDescriptor();
+            clearTimeout(timeout);
+            console.log('Detection result:', detection);
+            if (!detection) {
+                statusMsg.textContent = 'No face detected. Please try again.';
+                return;
+            }
+            const descriptor = Array.from(detection.descriptor);
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const resp = await fetch('{% url "api_register_face" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ descriptor })
+            });
+            const data = await resp.json();
+            console.log('Register response:', data);
+            if (data.success) {
+                statusMsg.textContent = 'Face registered successfully! Redirecting...';
+                setTimeout(() => { window.location.href = '{% url "dashboard:home" %}'; }, 1500);
+            } else {
+                statusMsg.textContent = 'Error: ' + (data.error || 'unknown');
+            }
+        } catch (err) {
+            clearTimeout(timeout);
+            statusMsg.textContent = 'Error: ' + err.message;
+            console.error(err);
         }
     }
 
