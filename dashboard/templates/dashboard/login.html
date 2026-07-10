@@ -37,9 +37,6 @@
             <span class="material-symbols-outlined" style="font-size:1rem;">face</span> Sign in with Face
         </button>
 
-        <!-- Temporary test POST button -->
-        <button id="test-post-btn" class="btn btn-ghost" style="width:100%; margin-top:0.5rem;">Test POST</button>
-
         <p style="margin-top: 1rem; font-size: 0.875rem;">
             Don't have an account? <a href="{% url 'dashboard:register' %}" style="color: var(--accent); font-weight: 600;">Register</a>
         </p>
@@ -49,7 +46,7 @@
     <div id="face-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center;">
         <div style="background: var(--surface); border-radius: 1rem; padding: 2rem; text-align: center; max-width: 400px;">
             <h3 style="margin-bottom: 1rem;">Face Recognition</h3>
-            <video id="face-video" width="280" height="210" autoplay muted style="background:#000; border-radius:8px;"></video>
+            <video id="face-video" width="280" height="210" autoplay muted playsinline style="background:#000; border-radius:8px;"></video>
             <canvas id="face-canvas" style="display:none;"></canvas>
             <p id="face-status" style="font-size:0.8rem; margin:0.75rem 0;">Loading face models...</p>
             <div style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -75,49 +72,32 @@
     // Load face-api models as soon as page is ready
     async function loadModels() {
         statusP.textContent = 'Loading face SDK...';
-        // The script tag is already in <head>, wait for it to initialize
         while (typeof faceapi === 'undefined') {
             await new Promise(r => setTimeout(r, 200));
         }
         const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
         statusP.textContent = 'Loading face models...';
-        await Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
-        modelsReady = true;
-        captureBtn.disabled = false;
-        statusP.textContent = 'Ready. Please capture your face.';
+        try {
+            await Promise.all([
+                faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+            ]);
+            modelsReady = true;
+            captureBtn.disabled = false;
+            statusP.textContent = 'Ready. Please capture your face.';
+        } catch (e) {
+            statusP.textContent = 'Failed to load models. Refresh and try again.';
+            console.error(e);
+        }
     }
 
-    // Start loading models immediately (in background)
+    // Start loading models immediately
     loadModels();
-
-    // Temporary test POST button
-    document.getElementById('test-post-btn').addEventListener('click', async () => {
-        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const dummyDescriptor = new Array(128).fill(0.5);   // 128 random-ish floats
-        try {
-            const resp = await fetch('{% url "api_face_login" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrf,
-                },
-                body: JSON.stringify({ descriptor: dummyDescriptor })
-            });
-            const data = await resp.json();
-            alert(JSON.stringify(data));
-        } catch (err) {
-            alert('Network error: ' + err.message);
-        }
-    });
 
     // Open modal and start camera
     document.getElementById('face-login-btn').addEventListener('click', async () => {
         faceModal.style.display = 'flex';
-        // Ensure models are loaded before trying to use camera
         while (!modelsReady) {
             await new Promise(r => setTimeout(r, 200));
         }
@@ -144,10 +124,28 @@
             statusP.textContent = 'Models not ready yet. Please wait.';
             return;
         }
+        // Ensure video is playing and ready
+        if (videoEl.readyState < 2) {
+            statusP.textContent = 'Camera not ready. Wait a moment.';
+            return;
+        }
+
         statusP.textContent = 'Capturing...';
-        canvasEl.getContext('2d').drawImage(videoEl, 0, 0, 280, 210);
+        // Set canvas dimensions to match video
+        canvasEl.width = videoEl.videoWidth;
+        canvasEl.height = videoEl.videoHeight;
+        const ctx = canvasEl.getContext('2d');
+        ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+
+        // Timeout fallback
+        const timeout = setTimeout(() => {
+            statusP.textContent = 'Detection timed out. Check lighting and try again.';
+        }, 8000);
+
         try {
             const detection = await faceapi.detectSingleFace(canvasEl).withFaceLandmarks().withFaceDescriptor();
+            clearTimeout(timeout);
+
             if (!detection) {
                 statusP.textContent = 'No face detected. Please try again.';
                 return;
@@ -168,12 +166,12 @@
                 statusP.textContent = 'Login successful! Redirecting...';
                 setTimeout(() => { window.location.href = data.redirect || '/'; }, 1000);
             } else {
-                // Show similarity score if available
-                const msg = data.error || 'Face not recognized';
-                statusP.textContent = msg;
+                statusP.textContent = data.error || 'Face not recognized';
             }
         } catch (err) {
+            clearTimeout(timeout);
             statusP.textContent = 'Error: ' + err.message;
+            console.error(err);
         }
     });
 </script>
