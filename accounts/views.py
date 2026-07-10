@@ -110,7 +110,7 @@ def api_face_login(request):
             input_vec = np.array(descriptor)
             best_match = None
             best_similarity = -1.0
-            threshold = 0.55
+            threshold = 0.5
 
             for profile in FaceProfile.objects.select_related('user').all():
                 stored_vec = np.array(profile.get_descriptor())
