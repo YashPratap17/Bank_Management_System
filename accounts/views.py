@@ -98,6 +98,37 @@ def cosine_similarity(a, b):
 #             return JsonResponse({'success': False, 'error': str(e)})
 #     return JsonResponse({'success': False, 'error': 'Invalid method'})
 
+# @csrf_exempt
+# def api_face_login(request):
+#     if request.method == 'POST':
+#         try:
+#             data = json.loads(request.body)
+#             descriptor = data.get('descriptor')
+#             if not descriptor or len(descriptor) != 128:
+#                 return JsonResponse({'success': False, 'error': 'Invalid descriptor'})
+
+#             input_vec = np.array(descriptor)
+#             best_match = None
+#             best_similarity = -1.0
+#             threshold = 0.5
+
+#             for profile in FaceProfile.objects.select_related('user').all():
+#                 stored_vec = np.array(profile.get_descriptor())
+#                 sim = cosine_similarity(input_vec, stored_vec)
+#                 if sim > threshold and sim > best_similarity:
+#                     best_similarity = sim
+#                     best_match = profile.user
+
+#             if best_match:
+#                 login(request, best_match)
+#                 return JsonResponse({'success': True, 'redirect': '/'})
+#             else:
+#                 return JsonResponse({'success': False, 'error': 'Face not recognized'})
+#         except Exception as e:
+#             return JsonResponse({'success': False, 'error': str(e)})
+#     return JsonResponse({'success': False, 'error': 'Invalid method'})
+
+
 @csrf_exempt
 def api_face_login(request):
     if request.method == 'POST':
@@ -110,20 +141,26 @@ def api_face_login(request):
             input_vec = np.array(descriptor)
             best_match = None
             best_similarity = -1.0
-            threshold = 0.5
+            profiles_checked = 0
 
             for profile in FaceProfile.objects.select_related('user').all():
-                stored_vec = np.array(profile.get_descriptor())
+                profiles_checked += 1
+                try:
+                    stored_vec = np.array(profile.get_descriptor())
+                except Exception:
+                    return JsonResponse({'success': False, 'error': f'Decryption failed for user {profile.user.username}'})
                 sim = cosine_similarity(input_vec, stored_vec)
-                if sim > threshold and sim > best_similarity:
+                if sim > best_similarity:
                     best_similarity = sim
                     best_match = profile.user
 
-            if best_match:
-                login(request, best_match)
-                return JsonResponse({'success': True, 'redirect': '/'})
-            else:
-                return JsonResponse({'success': False, 'error': 'Face not recognized'})
+            # Always return diagnostic info (temporary)
+            return JsonResponse({
+                'success': False,
+                'error': f'Profiles: {profiles_checked}, Best similarity: {best_similarity:.4f}',
+                'best_similarity': best_similarity,
+                'profiles_checked': profiles_checked,
+            })
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            return JsonResponse({'success': False, 'error': f'Exception: {str(e)}'})
     return JsonResponse({'success': False, 'error': 'Invalid method'})
