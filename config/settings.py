@@ -270,7 +270,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
@@ -280,13 +280,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard:home'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+<<<<<<< HEAD
 
 # Jazzmin settings (customize as you like)
 JAZZMIN_SETTINGS = {
@@ -311,3 +312,5 @@ JAZZMIN_UI_TWEAKS = {
     "theme": "flatly",          # or "darkly" for a dark theme
     "dark_mode_theme": "darkly",
 }
+=======
+>>>>>>> 4214589d238607feee625847d86174f3b4efb379
