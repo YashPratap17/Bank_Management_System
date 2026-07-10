@@ -6,3 +6,4 @@ dj-database-url
 cryptography
 numpy
 whitenoise
+django-jazzmin

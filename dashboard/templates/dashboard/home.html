@@ -70,6 +70,68 @@
     .wallet-overspending { color: var(--danger); }
     .tx-amount-debit { color: var(--danger); }
     .tx-amount-credit { color: var(--success); }
+
+    /* ===== RESPONSIVE STYLES ===== */
+    @media (max-width: 640px) {
+        .balance-amount {
+            font-size: 2.2rem;        /* smaller on phones */
+        }
+        .stat-card {
+            padding: 1rem;
+        }
+        /* Stats grid: force single column */
+        .stats-grid {
+            grid-template-columns: 1fr !important;
+        }
+        /* Balance card buttons – stack vertically if needed */
+        .balance-card .btn-group {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .balance-card .btn-group .btn {
+            font-size: 0.8rem;
+            padding: 0.5rem 0.9rem;
+        }
+        /* Spend Overview – stack chart and category list */
+        .spend-flex {
+            flex-direction: column !important;
+        }
+        .spend-flex .chart-col {
+            /* FIX: height:auto collapses the canvas to 0px since Chart.js
+               needs an explicit container height to size against. Give it
+               a real (smaller) height instead of removing it entirely. */
+            min-width: 100% !important;
+            height: 160px !important;
+        }
+        /* Transaction rows – reduce padding and gap */
+        .tx-row {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.75rem 0;
+        }
+        .tx-row .tx-icon {
+            width: 2rem; height: 2rem;
+            font-size: 0.9rem;
+        }
+        .tx-row .tx-details {
+            flex: 1 1 60%;
+        }
+        .tx-row .tx-amount {
+            text-align: left;
+            margin-left: auto;
+        }
+        /* Hide balance-after label on small screens (optional) */
+        .tx-row .bal-after {
+            display: none;
+        }
+    }
+
+    /* Slightly larger mobile landscape / small tablets */
+    @media (min-width: 641px) and (max-width: 1024px) {
+        .balance-amount {
+            font-size: 2.6rem;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -108,7 +170,7 @@
                 {{ account.get_status_display }}
             </span>
         </div>
-        <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; position: relative;">
+        <div class="btn-group" style="display: flex; gap: 0.75rem; margin-top: 1.5rem; position: relative;">
             <a href="{{ url_deposit }}" class="btn" style="background: #fff; color: var(--accent-hover); font-weight:700;">+ Deposit</a>
             <a href="{{ url_transfer }}" class="btn" style="background: rgba(255,255,255,0.16); color: #fff; border:1px solid rgba(255,255,255,0.22);">Send Money</a>
             <a href="{{ url_analytics }}" class="btn" style="background: rgba(255,255,255,0.16); color: #fff; border:1px solid rgba(255,255,255,0.22);">Analytics</a>
@@ -116,7 +178,7 @@
     </div>
 
     <!-- Stats Row -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; margin-bottom: 1.5rem;">
         <div class="stat-card stagger-item delay-2">
             <p style="font-size: 0.7rem; letter-spacing:0.06em; color: var(--text-muted); margin-bottom: 0.5rem;">TOTAL DEPOSITED</p>
             <p style="font-size: 1.5rem; font-weight: 700;">₹{{ account_stats.total_in|default:"0.00" }}</p>
@@ -150,8 +212,8 @@
             <span style="font-size: 0.75rem; color: var(--text-muted);">This month</span>
         </div>
         {% if category_data_zipped %}
-        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-            <div style="flex: 2; min-width: 200px; height: 120px; position: relative;">
+        <div class="spend-flex" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+            <div class="chart-col" style="flex: 2; min-width: 200px; height: 120px; position: relative;">
                 <canvas id="spendBarChart"></canvas>
             </div>
             <div style="flex: 1; min-width: 140px;">
@@ -191,16 +253,12 @@
         </div>
         {% for entry in account.recent_entries %}
         <div class="tx-row">
-            {% if entry.entry_type == 'DEBIT' %}
-            <div class="tx-icon debit">
-                <span class="material-symbols-outlined" style="font-size:1.2rem;">arrow_upward</span>
+            <div class="tx-icon {% if entry.entry_type == 'DEBIT' %}debit{% endif %}">
+                <span class="material-symbols-outlined" style="font-size:1.2rem;">
+                    {% if entry.entry_type == 'DEBIT' %}arrow_upward{% else %}arrow_downward{% endif %}
+                </span>
             </div>
-            {% else %}
-            <div class="tx-icon">
-                <span class="material-symbols-outlined" style="font-size:1.2rem;">arrow_downward</span>
-            </div>
-            {% endif %}
-            <div style="flex:1;">
+            <div class="tx-details" style="flex:1;">
                 <p style="font-weight: 600; font-size: 0.875rem;">
                     {{ entry.transaction.description|default:"Transaction" }}
                     {% if entry.transaction.status == "FLAGGED" %}<span class="badge badge-danger">flagged</span>{% endif %}
@@ -210,13 +268,13 @@
                     <span class="cat-badge cat-{{ entry.transaction.category }}">{{ entry.transaction.category }}</span>
                 </p>
             </div>
-            <div style="text-align: right;">
+            <div class="tx-amount" style="text-align: right;">
                 {% if entry.entry_type == 'DEBIT' %}
                 <p class="tx-amount-debit" style="font-weight: 700;">−₹{{ entry.amount }}</p>
                 {% else %}
                 <p class="tx-amount-credit" style="font-weight: 700;">+₹{{ entry.amount }}</p>
                 {% endif %}
-                <p style="font-size: 0.6875rem; color: var(--text-muted);">bal ₹{{ entry.balance_after }}</p>
+                <p class="bal-after" style="font-size: 0.6875rem; color: var(--text-muted);">bal ₹{{ entry.balance_after }}</p>
             </div>
         </div>
         {% empty %}

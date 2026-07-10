@@ -7,6 +7,7 @@ from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from .models import FaceProfile
+from numpy.linalg import norm   # already imported, will use for cosine
 
 User = get_user_model()
 
@@ -32,9 +33,13 @@ def api_register_face(request):
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid method'})
 
+def cosine_similarity(a, b):
+    """Return cosine similarity between two vectors."""
+    return np.dot(a, b) / (norm(a) * norm(b))
+
 @csrf_exempt  # use CSRF token in production, but for AJAX it's fine with token in header
 def api_face_login(request):
-    """Login by matching face descriptor."""
+    """Login by matching face descriptor using cosine similarity."""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -43,15 +48,17 @@ def api_face_login(request):
                 return JsonResponse({'success': False, 'error': 'Invalid descriptor'})
             input_vec = np.array(descriptor)
             best_match = None
-            best_distance = 1.0
-            threshold = 0.6  # typical face-api threshold (lower is stricter)
+            best_similarity = -1.0       # cosine similarity ranges from -1 to 1
+            threshold = 0.7              # 0.7 works well; higher = stricter
+
             # Compare with all stored face profiles
             for profile in FaceProfile.objects.select_related('user').all():
                 stored_vec = np.array(profile.get_descriptor())
-                distance = np.linalg.norm(input_vec - stored_vec)
-                if distance < threshold and distance < best_distance:
-                    best_distance = distance
+                sim = cosine_similarity(input_vec, stored_vec)
+                if sim > threshold and sim > best_similarity:
+                    best_similarity = sim
                     best_match = profile.user
+
             if best_match:
                 login(request, best_match)
                 return JsonResponse({'success': True, 'redirect': '/'})
@@ -60,4 +67,3 @@ def api_face_login(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid method'})
-

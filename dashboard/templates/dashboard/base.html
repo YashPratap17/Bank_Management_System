@@ -2,7 +2,7 @@
 <html lang="en" class="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Kosh — Banking{% endblock %}</title>
 
     <!-- Fonts -->
@@ -13,6 +13,7 @@
 
     <!-- Tailwind (lightweight helpers) -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -228,6 +229,51 @@
             align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;
         }
 
+        /* ===== MOBILE MENU (hamburger) ===== */
+        .mobile-menu-toggle {
+            display: none;
+            background: none; border: none; cursor: pointer;
+            color: var(--text-secondary); padding: 0.5rem; border-radius: 0.5rem;
+            align-items: center; justify-content: center;
+            transition: all var(--transition);
+        }
+        .mobile-menu-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
+        .mobile-menu-toggle .material-symbols-outlined { font-size: 1.4rem; }
+
+        .mobile-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            position: fixed;
+            top: var(--nav-height);
+            left: 0; right: 0;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow-lg);
+            padding: 0.6rem;
+            z-index: 999;
+            transform: translateY(-8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.22s ease, opacity 0.22s ease;
+        }
+        .mobile-menu.open {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .mobile-menu a {
+            display: block;
+            padding: 0.85rem 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.95rem; font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: background var(--transition), color var(--transition);
+        }
+        .mobile-menu a:hover { background: var(--surface-hover); color: var(--text-primary); }
+        .mobile-menu a.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+
         /* ===== CONTENT ===== */
         .main-content {
             position: relative; z-index: 1;
@@ -334,6 +380,12 @@
         @media (max-width: 768px) {
             .navbar { padding: 0 1rem; }
             .nav-links { display: none; }
+            .mobile-menu-toggle { display: flex; }
+        }
+        @media (max-width: 480px) {
+            .main-content { padding-left: 1rem; padding-right: 1rem; }
+            .toast-container { left: 1rem; right: 1rem; top: 4.5rem; }
+            .toast-container .toast { width: 100%; }
         }
     </style>
 
@@ -366,6 +418,11 @@
         </div>
 
         <div class="nav-actions">
+            {% if user.is_authenticated %}
+            <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Menu" aria-expanded="false">
+                <span class="material-symbols-outlined" id="mobileMenuIcon">menu</span>
+            </button>
+            {% endif %}
             <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
                 <span class="material-symbols-outlined" id="themeIcon">dark_mode</span>
             </button>
@@ -385,6 +442,22 @@
             {% endif %}
         </div>
     </nav>
+
+    <!-- Mobile dropdown menu — same links/logic as .nav-links, just for small screens -->
+    {% if user.is_authenticated %}
+    <div class="mobile-menu" id="mobileMenu">
+        {% if user.is_staff %}
+            <a href="/staff/approvals/">Approvals</a>
+            <a href="/staff/risk/">Risk Desk</a>
+        {% else %}
+            <a href="{% url 'dashboard:home' %}" class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}">Dashboard</a>
+            <a href="{% url 'ledger:deposit' %}">Deposit</a>
+            <a href="{% url 'ledger:transfer' %}">Send Money</a>
+            <a href="{% url 'dashboard:analytics' %}" class="{% if request.resolver_match.url_name == 'analytics' %}active{% endif %}">Analytics</a>
+            <a href="{% url 'dashboard:register_face' %}" class="{% if request.resolver_match.url_name == 'register_face' %}active{% endif %}">Face ID</a>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Toast messages -->
     {% if messages %}
@@ -428,6 +501,41 @@
                 localStorage.setItem('kosh-theme', isDark ? 'dark' : 'light');
                 themeIcon.textContent = isDark ? 'light_mode' : 'dark_mode';
                 window.dispatchEvent(new CustomEvent('themechange', { detail: { dark: isDark } }));
+            });
+        })();
+    </script>
+
+    <!-- Mobile menu toggle script -->
+    <script>
+        (function() {
+            const toggle = document.getElementById('mobileMenuToggle');
+            const menu = document.getElementById('mobileMenu');
+            const icon = document.getElementById('mobileMenuIcon');
+            if (!toggle || !menu) return;
+
+            function closeMenu() {
+                menu.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+                icon.textContent = 'menu';
+            }
+            function openMenu() {
+                menu.classList.add('open');
+                toggle.setAttribute('aria-expanded', 'true');
+                icon.textContent = 'close';
+            }
+
+            toggle.addEventListener('click', () => {
+                menu.classList.contains('open') ? closeMenu() : openMenu();
+            });
+
+            // Close when a link inside the menu is tapped
+            menu.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', closeMenu);
+            });
+
+            // Close if the viewport is resized back up to desktop width
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 768) closeMenu();
             });
         })();
     </script>

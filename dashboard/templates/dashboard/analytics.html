@@ -15,6 +15,31 @@
         width: 100%;
         min-height: 300px;
     }
+
+    /* ===== RESPONSIVE STYLES ===== */
+    @media (max-width: 640px) {
+        /* Force single column for summary cards */
+        .summary-grid {
+            grid-template-columns: 1fr !important;
+        }
+        /* Chart grid: stack vertically */
+        .chart-grid {
+            grid-template-columns: 1fr !important;
+        }
+        .chart-wrapper {
+            min-height: 250px;
+        }
+    }
+
+    @media (min-width: 641px) and (max-width: 1024px) {
+        /* For tablets: still single column for charts if needed */
+        .chart-grid {
+            grid-template-columns: 1fr !important;
+        }
+        .chart-wrapper {
+            min-height: 280px;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -23,7 +48,7 @@
     <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem;">Analytics Overview</h1>
 
     <!-- Summary Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; margin-bottom: 1.5rem;">
         <div class="summary-card">
             <p style="font-size: 0.75rem; color: var(--text-muted);">TOTAL SPENT</p>
             <p style="font-size: 1.5rem; font-weight: 700;" id="totalSpent">—</p>
@@ -39,7 +64,7 @@
     </div>
 
     <!-- Charts -->
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+    <div class="chart-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
         <!-- Balance Line Chart -->
         <div class="card">
             <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Balance over Time</h3>

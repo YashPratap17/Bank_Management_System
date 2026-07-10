@@ -25,4 +25,6 @@ urlpatterns = [
     path('staff/', include('ai_insights.urls')),
     path('', include('ledger.urls')),
     path('', include('dashboard.urls')),
+    path('ledger/', include('ledger.urls')),
+    path('accounts/', include('accounts.urls')),
 ]

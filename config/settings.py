@@ -187,6 +187,7 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -286,3 +287,27 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard:home'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Jazzmin settings (customize as you like)
+JAZZMIN_SETTINGS = {
+    # title of the admin window
+    "site_title": "Kosh Admin",
+    "site_header": "Kosh Bank",
+    "site_brand": "Kosh",
+    "welcome_sign": "Welcome to Kosh Administration",
+    "copyright": "Kosh Bank Ltd",
+    "search_model": ["accounts.Customer", "accounts.Account"],
+    # links to your front‑end dashboard
+    "topmenu_links": [
+        {"name": "Dashboard", "url": "/", "new_window": False},
+    ],
+    # dark/light mode toggle
+    "show_ui_builder": False,
+    "changeform_format": "horizontal_tabs",
+    "related_modal_active": True,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "theme": "flatly",          # or "darkly" for a dark theme
+    "dark_mode_theme": "darkly",
+}

@@ -61,19 +61,29 @@
     const statusP = document.getElementById('face-status');
     let faceStream = null;
 
-    async function initFaceModal() {
-        // Already loaded face-api models globally? We can load them on demand
+    // Load face-api models globally if not already loaded
+    async function ensureModels() {
         if (typeof faceapi === 'undefined') {
-            statusP.textContent = 'Loading face models...';
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
-            document.head.appendChild(script);
-            await new Promise(resolve => script.onload = resolve);
-            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-            await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+            statusP.textContent = 'Loading face SDK...';
+            await new Promise((resolve) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js';
+                script.onload = resolve;
+                document.head.appendChild(script);
+            });
         }
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
+        statusP.textContent = 'Loading face models...';
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        statusP.textContent = '';
+    }
+
+    async function initFaceModal() {
+        await ensureModels();
         try {
             faceStream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoEl.srcObject = faceStream;
@@ -105,7 +115,7 @@
         }
         const descriptor = Array.from(detection.descriptor);
         const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const resp = await fetch('{% url "dashboard:api_face_login" %}', {
+        const resp = await fetch('{% url "api_face_login" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -118,7 +128,7 @@
             statusP.textContent = 'Login successful! Redirecting...';
             setTimeout(() => { window.location.href = data.redirect || '/'; }, 1000);
         } else {
-            statusP.textContent = 'Face not recognized or no face registered. Use password.';
+            statusP.textContent = 'Face not recognized. Use password.';
         }
     });
 </script>

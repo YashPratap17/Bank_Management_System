@@ -1,231 +1,165 @@
 {% extends "dashboard/base.html" %}
-{% block title %}Set Up Face Login — Kosh{% endblock %}
+{% block title %}Face Registration — Kosh{% endblock %}
 
 {% block extra_style %}
 <style>
-    .face-card {
-        max-width: 480px;
+    .face-setup-card {
+        max-width: 460px;
         margin: 2rem auto;
     }
-    .video-container {
+    .face-setup-eyebrow {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--accent); margin-bottom: 0.6rem;
+    }
+    .face-setup-eyebrow .material-symbols-outlined { font-size: 1rem; }
+
+    .video-frame {
         position: relative;
-        width: 100%;
-        max-width: 360px;
+        width: 320px; max-width: 100%;
         margin: 0 auto 1.25rem;
-        border-radius: 1rem;
+        border-radius: var(--radius-lg);
         overflow: hidden;
         background: #000;
-        aspect-ratio: 4/3;
+        box-shadow: var(--shadow-md);
     }
-    #face-video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+    .video-frame video {
         display: block;
-        border-radius: 1rem;
+        width: 100%; height: auto;
+        border-radius: var(--radius-lg);
+        background: #000;
     }
-    .face-overlay {
+    /* Purely decorative scan-corner reticle — no effect on the underlying
+       video/canvas elements or their pixel dimensions */
+    .video-frame::before, .video-frame::after,
+    .video-frame .corner-tl, .video-frame .corner-br {
+        content: "";
         position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        width: 22px; height: 22px;
+        border-color: rgba(255,255,255,0.55);
         pointer-events: none;
     }
-    .face-ring {
-        width: 180px;
-        height: 220px;
-        border: 3px dashed rgba(13,148,136,0.7);
-        border-radius: 50%;
-        animation: pulse-ring 2s ease-in-out infinite;
-    }
-    @keyframes pulse-ring {
-        0%, 100% { opacity: 0.5; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.04); }
-    }
+    .video-frame::before { top: 8px; left: 8px; border-top: 2px solid; border-left: 2px solid; border-radius: 4px 0 0 0; }
+    .video-frame::after { bottom: 8px; right: 8px; border-bottom: 2px solid; border-right: 2px solid; border-radius: 0 0 4px 0; }
+
     .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.4rem 0.9rem;
-        border-radius: 2rem;
-        font-size: 0.8125rem;
-        font-weight: 500;
-        background: var(--surface);
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        font-size: 0.8rem; font-weight: 500;
+        color: var(--text-secondary);
+        background: var(--surface-hover);
         border: 1px solid var(--border);
-        margin-bottom: 1.25rem;
-        transition: all 0.3s;
+        border-radius: 2rem;
+        padding: 0.4rem 0.9rem;
+        margin-top: 1rem;
+        min-height: 1.2rem;
+        transition: color 0.2s ease;
     }
-    .status-pill.loading { border-color: var(--warning); color: var(--warning); }
-    .status-pill.success { border-color: var(--success); color: var(--success); background: rgba(16,185,129,0.08); }
-    .status-pill.error   { border-color: var(--danger);  color: var(--danger);  background: rgba(239,68,68,0.08); }
-    .dot {
-        width: 8px; height: 8px; border-radius: 50%;
-        background: currentColor;
-        animation: blink 1s ease-in-out infinite;
+
+    .face-setup-actions {
+        display: flex; flex-direction: column; gap: 0.6rem;
+        margin-top: 1.5rem;
     }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .face-setup-actions .btn-primary { width: 100%; justify-content: center; padding: 0.8rem; font-size: 0.95rem; }
+    .face-setup-actions .skip-link {
+        text-align: center; font-size: 0.8125rem;
+        color: var(--text-muted); text-decoration: none;
+    }
+    .face-setup-actions .skip-link:hover { color: var(--text-secondary); }
 </style>
 {% endblock %}
 
 {% block content %}
-{% url 'dashboard:home' as url_home %}
-{% url 'dashboard:api_register_face' as url_api_register_face %}
+<div class="stagger-item delay-1 card face-setup-card">
+    <div class="face-setup-eyebrow">
+        <span class="material-symbols-outlined">verified_user</span>
+        Optional · Biometric login
+    </div>
+    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Set up Face Login</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem; line-height:1.55;">
+        For faster and more secure login, we can recognize your face. This is optional —
+        you can always use your password instead.
+    </p>
 
-<div class="face-card stagger-item delay-1">
-    <div class="card">
-        <div style="text-align: center; margin-bottom: 1.5rem;">
-            <span class="material-symbols-outlined" style="font-size: 2.5rem; color: var(--accent);">face_unlock</span>
-            <h1 style="font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem;">Set Up Face Login</h1>
-            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.35rem;">
-                Skip passwords — sign in instantly with your face. This is <strong>optional</strong>.
-            </p>
-        </div>
+    <div class="video-frame">
+        <video id="video" width="320" height="240" autoplay muted></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+    </div>
 
-        <!-- Hidden CSRF form (for fetch header) -->
-        <form id="csrf-form" style="display:none;">{% csrf_token %}</form>
+    <div style="text-align:center;">
+        <span class="status-pill" id="status-msg-wrap">
+            <span class="material-symbols-outlined" style="font-size:1rem;">face</span>
+            <span id="status-msg"></span>
+        </span>
+    </div>
 
-        <!-- Status pill -->
-        <div style="text-align: center;">
-            <div class="status-pill loading" id="status-pill">
-                <span class="dot"></span>
-                <span id="status-text">Starting camera…</span>
-            </div>
-        </div>
-
-        <!-- Video -->
-        <div class="video-container">
-            <video id="face-video" autoplay muted playsinline></video>
-            <div class="face-overlay">
-                <div class="face-ring" id="face-ring"></div>
-            </div>
-        </div>
-
-        <!-- Buttons -->
-        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <button id="capture-btn" class="btn btn-primary" style="justify-content: center; width: 100%;" disabled>
-                <span class="material-symbols-outlined" style="font-size: 1.1rem;">photo_camera</span>
-                Capture &amp; Register Face
-            </button>
-            <a href="{{ url_home }}" id="skip-btn" class="btn btn-ghost" style="justify-content: center; width: 100%;">
-                Skip for now — use password login
-            </a>
-        </div>
-
-        <div style="margin-top: 1.25rem; padding: 0.875rem; background: var(--accent-light); border-radius: 0.75rem; font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 0.5rem; align-items: flex-start;">
-            <span class="material-symbols-outlined" style="font-size: 1rem; color: var(--accent); flex-shrink: 0; margin-top: 0.1rem;">shield</span>
-            <span>Your face data is encrypted and stored securely. You can always use your password as a backup.</span>
-        </div>
+    <div class="face-setup-actions">
+        <button id="capture-btn" class="btn btn-primary">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;">photo_camera</span>
+            Capture Face
+        </button>
+        <a href="{% url 'dashboard:home' %}" class="skip-link">Skip for now</a>
     </div>
 </div>
 
-<canvas id="face-canvas" style="display:none;"
-    data-api-url="{% url 'dashboard:api_register_face' %}"
-    data-home-url="{% url 'dashboard:home' %}"
-></canvas>
-{% endblock %}
-
-{% block extra_script %}
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script>
-(async function () {
-    const video      = document.getElementById('face-video');
-    const canvas     = document.getElementById('face-canvas');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('capture-btn');
-    const pill       = document.getElementById('status-pill');
-    const statusTxt  = document.getElementById('status-text');
-    const faceRing   = document.getElementById('face-ring');
+    const statusMsg = document.getElementById('status-msg');
 
-    const API_URL  = canvas.dataset.apiUrl;
-    const HOME_URL = canvas.dataset.homeUrl;
-    const csrf     = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    let stream = null;
 
-    function setStatus(msg, type) {
-        statusTxt.textContent = msg;
-        pill.className = 'status-pill ' + (type || '');
-        const dot = pill.querySelector('.dot');
-        if (dot) dot.style.display = type === 'loading' ? 'block' : 'none';
+    async function startCamera() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (err) {
+            statusMsg.textContent = 'Camera access denied. You can skip face setup.';
+            captureBtn.disabled = true;
+        }
     }
 
-    // 1. Load face-api models
-    try {
-        setStatus('Loading AI models…', 'loading');
-        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+    async function loadModels() {
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
+        statusMsg.textContent = 'Loading face models...';
         await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-    } catch (e) {
-        setStatus('Failed to load AI models. Check your connection.', 'error');
-        return;
+        statusMsg.textContent = 'Models loaded. Please capture your face.';
     }
 
-    // 2. Start camera
-    try {
-        setStatus('Requesting camera access…', 'loading');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        video.srcObject = stream;
-        await new Promise(r => video.onloadedmetadata = r);
-        setStatus('Position your face inside the ring, then capture.', '');
-        captureBtn.disabled = false;
-        faceRing.style.borderStyle = 'solid';
-    } catch (err) {
-        setStatus('Camera access denied. You can skip and use password login.', 'error');
-        captureBtn.disabled = true;
-        return;
-    }
-
-    // 3. Capture button
-    captureBtn.addEventListener('click', async () => {
-        captureBtn.disabled = true;
-        setStatus('Detecting face…', 'loading');
-
-        canvas.width  = video.videoWidth  || 320;
-        canvas.height = video.videoHeight || 240;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        let detection;
-        try {
-            detection = await faceapi
-                .detectSingleFace(canvas)
-                .withFaceLandmarks()
-                .withFaceDescriptor();
-        } catch (e) {
-            setStatus('Detection error. Please try again.', 'error');
-            captureBtn.disabled = false;
-            return;
-        }
-
+    async function capture() {
+        statusMsg.textContent = 'Processing...';
+        canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
+        const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks().withFaceDescriptor();
         if (!detection) {
-            setStatus('No face detected. Centre your face and try again.', 'error');
-            captureBtn.disabled = false;
+            statusMsg.textContent = 'No face detected. Please try again.';
             return;
         }
-
-        setStatus('Saving face ID…', 'loading');
-        try {
-            const resp = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrf,
-                },
-                body: JSON.stringify({ descriptor: Array.from(detection.descriptor) }),
-            });
-            const data = await resp.json();
-            if (data.success) {
-                setStatus('Face registered! Redirecting to dashboard…', 'success');
-                // Stop camera
-                video.srcObject.getTracks().forEach(t => t.stop());
-                setTimeout(() => { window.location.href = HOME_URL; }, 1800);
-            } else {
-                setStatus('Error: ' + (data.error || 'Something went wrong.'), 'error');
-                captureBtn.disabled = false;
-            }
-        } catch (e) {
-            setStatus('Network error. Please try again.', 'error');
-            captureBtn.disabled = false;
+        const descriptor = Array.from(detection.descriptor);
+        // send to server
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch('{% url "api_register_face" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify({ descriptor: descriptor })
+        });
+        const data = await response.json();
+        if (data.success) {
+            statusMsg.textContent = 'Face registered successfully! Redirecting...';
+            setTimeout(() => { window.location.href = '{% url "dashboard:home" %}'; }, 1500);
+        } else {
+            statusMsg.textContent = 'Error: ' + (data.error || 'something went wrong');
         }
-    });
-})();
+    }
+
+    (async () => {
+        await startCamera();
+        await loadModels();
+        captureBtn.addEventListener('click', capture);
+    })();
 </script>
 {% endblock %}

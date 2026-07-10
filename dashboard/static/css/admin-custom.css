@@ -1,0 +1,194 @@
+/* ===== Kosh Admin Overrides ===== */
+:root {
+    --admin-bg: #f8f9fa;
+    --admin-surface: #ffffff;
+    --admin-border: #e5e7eb;
+    --admin-text: #1e293b;
+    --admin-muted: #64748b;
+    --admin-accent: #0d9488;
+    --admin-accent-hover: #0f766e;
+    --admin-danger: #ef4444;
+    --admin-success: #10b981;
+    --admin-radius: 10px;
+}
+
+body {
+    background: var(--admin-bg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--admin-text);
+}
+
+/* Header */
+#header {
+    background: var(--admin-surface);
+    border-bottom: 1px solid var(--admin-border);
+    color: var(--admin-text);
+    padding: 0 20px;
+    height: auto;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+}
+#header #branding h1 a {
+    color: var(--admin-accent);
+}
+#header #user-tools a {
+    color: var(--admin-muted);
+}
+#header #user-tools a:hover {
+    color: var(--admin-accent);
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+    background: var(--admin-surface);
+    border-bottom: 1px solid var(--admin-border);
+    padding: 10px 20px;
+    color: var(--admin-muted);
+    font-size: 0.85rem;
+}
+.breadcrumbs a {
+    color: var(--admin-accent);
+}
+
+/* Content area */
+#content {
+    padding: 20px;
+}
+.module {
+    background: var(--admin-surface);
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+}
+.module h2, .module caption {
+    background: var(--admin-surface);
+    border-bottom: 1px solid var(--admin-border);
+    padding: 12px 15px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--admin-text);
+    border-radius: var(--admin-radius) var(--admin-radius) 0 0;
+}
+
+/* Tables */
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+thead th {
+    background: var(--admin-bg);
+    color: var(--admin-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--admin-border);
+}
+tbody td, tbody th {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--admin-border);
+    font-size: 0.875rem;
+}
+tbody tr:hover {
+    background: rgba(13,148,136,0.03);
+}
+
+/* Buttons */
+.button, input[type="submit"], input[type="button"], .submit-row input {
+    background: var(--admin-accent);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    color: #fff;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.button:hover, input[type="submit"]:hover {
+    background: var(--admin-accent-hover);
+}
+.button.default {
+    background: var(--admin-accent);
+}
+.button.delete-link, a.deletelink {
+    background: var(--admin-danger);
+    color: #fff;
+}
+.button.delete-link:hover, a.deletelink:hover {
+    background: #dc2626;
+}
+
+/* Form inputs */
+input[type="text"], input[type="password"], input[type="email"], textarea, select {
+    border: 1px solid var(--admin-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    background: #fff;
+    transition: border 0.2s, box-shadow 0.2s;
+}
+input:focus, textarea:focus, select:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(13,148,136,0.1);
+    outline: none;
+}
+
+/* Dashboard modules */
+.dashboard .module table th {
+    width: 100%;
+}
+.dashboard .module table td a {
+    color: var(--admin-text);
+    font-weight: 500;
+}
+.dashboard .module table td a:hover {
+    color: var(--admin-accent);
+}
+
+/* Sidebar (if using nav-sidebar) */
+#nav-sidebar {
+    background: var(--admin-surface);
+    border-right: 1px solid var(--admin-border);
+}
+#nav-sidebar .current-model {
+    background: rgba(13,148,136,0.08);
+}
+
+/* Dark mode – automatically matches your user pages when html.dark is added */
+html.dark body {
+    --admin-bg: #000000;
+    --admin-surface: #111111;
+    --admin-border: #333333;
+    --admin-text: #e5e7eb;
+    --admin-muted: #9ca3af;
+}
+html.dark input, html.dark textarea, html.dark select {
+    background: #1a1a1a;
+    color: #e5e7eb;
+    border-color: #333;
+}
+html.dark .breadcrumbs {
+    background: #0a0a0a;
+    border-color: #222;
+}
+html.dark .module, html.dark #header {
+    background: #111;
+    border-color: #222;
+}
+html.dark table thead th {
+    background: #0a0a0a;
+    border-color: #222;
+}
+html.dark tbody td, html.dark tbody th {
+    border-color: #222;
+}
+html.dark .button, html.dark input[type="submit"] {
+    background: var(--admin-accent);
+}
+html.dark .button:hover {
+    background: var(--admin-accent-hover);
+}
