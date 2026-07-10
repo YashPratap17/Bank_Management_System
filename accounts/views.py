@@ -164,3 +164,6 @@ def api_face_login(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': f'Exception: {str(e)}'})
     return JsonResponse({'success': False, 'error': 'Invalid method'})
+
+def test_face(request):
+    return JsonResponse({"hello": "world"})
