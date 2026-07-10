@@ -129,41 +129,79 @@ def cosine_similarity(a, b):
 #     return JsonResponse({'success': False, 'error': 'Invalid method'})
 
 
+# @csrf_exempt
+# def api_face_login(request):
+#     if request.method == 'POST':
+#         try:
+#             data = json.loads(request.body)
+#             descriptor = data.get('descriptor')
+#             if not descriptor or len(descriptor) != 128:
+#                 return JsonResponse({'success': False, 'error': 'Invalid descriptor'})
+
+#             input_vec = np.array(descriptor)
+#             best_match = None
+#             best_similarity = -1.0
+#             profiles_checked = 0
+
+#             for profile in FaceProfile.objects.select_related('user').all():
+#                 profiles_checked += 1
+#                 try:
+#                     stored_vec = np.array(profile.get_descriptor())
+#                 except Exception:
+#                     return JsonResponse({'success': False, 'error': f'Decryption failed for user {profile.user.username}'})
+#                 sim = cosine_similarity(input_vec, stored_vec)
+#                 if sim > best_similarity:
+#                     best_similarity = sim
+#                     best_match = profile.user
+
+#             # Always return diagnostic info (temporary)
+#             return JsonResponse({
+#                 'success': False,
+#                 'error': f'Profiles: {profiles_checked}, Best similarity: {best_similarity:.4f}',
+#                 'best_similarity': best_similarity,
+#                 'profiles_checked': profiles_checked,
+#             })
+#         except Exception as e:
+#             return JsonResponse({'success': False, 'error': f'Exception: {str(e)}'})
+#     return JsonResponse({'success': False, 'error': 'Invalid method'})
+
+# def test_face(request):
+#     return JsonResponse({"hello": "world"})
+
 @csrf_exempt
 def api_face_login(request):
-    if request.method == 'POST':
-        try:
+    # Temporary: accepts both GET and POST for debugging
+    try:
+        if request.method == 'POST':
             data = json.loads(request.body)
             descriptor = data.get('descriptor')
-            if not descriptor or len(descriptor) != 128:
-                return JsonResponse({'success': False, 'error': 'Invalid descriptor'})
+        else:
+            descriptor = None
 
+        if descriptor and len(descriptor) == 128:
             input_vec = np.array(descriptor)
-            best_match = None
             best_similarity = -1.0
             profiles_checked = 0
+            best_match = None
 
             for profile in FaceProfile.objects.select_related('user').all():
                 profiles_checked += 1
-                try:
-                    stored_vec = np.array(profile.get_descriptor())
-                except Exception:
-                    return JsonResponse({'success': False, 'error': f'Decryption failed for user {profile.user.username}'})
+                stored_vec = np.array(profile.get_descriptor())
                 sim = cosine_similarity(input_vec, stored_vec)
                 if sim > best_similarity:
                     best_similarity = sim
                     best_match = profile.user
 
-            # Always return diagnostic info (temporary)
             return JsonResponse({
                 'success': False,
                 'error': f'Profiles: {profiles_checked}, Best similarity: {best_similarity:.4f}',
-                'best_similarity': best_similarity,
-                'profiles_checked': profiles_checked,
+                'method': request.method,
             })
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': f'Exception: {str(e)}'})
-    return JsonResponse({'success': False, 'error': 'Invalid method'})
 
-def test_face(request):
-    return JsonResponse({"hello": "world"})
+        return JsonResponse({
+            'success': False,
+            'error': f'No valid descriptor. Method: {request.method}',
+            'method': request.method,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Exception: {str(e)}'})
