@@ -16,6 +16,18 @@ class TransferForm(forms.Form):
     )
     amount = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
     description = forms.CharField(max_length=255, required=False)
+    
+    CATEGORY_CHOICES = [
+        ("AUTO", "Auto-categorize"),
+        ("Food", "Food"),
+        ("Transport", "Transport"),
+        ("Shopping", "Shopping"),
+        ("Entertainment", "Entertainment"),
+        ("Bills", "Bills"),
+        ("Education", "Education"),
+        ("Other", "Other"),
+    ]
+    category = forms.ChoiceField(choices=CATEGORY_CHOICES, required=False, initial="AUTO")
 
     def __init__(self, *args, sender_account=None, **kwargs):
         self.sender_account = sender_account

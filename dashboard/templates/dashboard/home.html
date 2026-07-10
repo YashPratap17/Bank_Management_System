@@ -205,6 +205,37 @@
         </div>
     </div>
 
+    <!-- Cards Section -->
+    <div class="card stagger-item delay-2" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.05rem; font-weight: 600;">My Cards</h3>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <form method="POST" action="{% url 'dashboard:apply_credit_card' %}" style="margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn" style="background: var(--accent); color: #fff; font-size: 0.75rem; padding: 0.4rem 0.8rem;">Apply for Credit Card</button>
+                </form>
+                <a href="{% url 'dashboard:manage_cards' %}" class="btn btn-ghost" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">Manage</a>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 0.5rem;">
+            {% for c in cards %}
+                <div style="min-width: 200px; padding: 1.25rem; border-radius: var(--radius-lg); background: {% if c.card_type == 'CREDIT' %}linear-gradient(135deg, #a33c78 0%, #611e44 100%){% else %}linear-gradient(135deg, #1d365e 0%, #0d1e38 100%){% endif %}; color: #fff; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;">
+                    <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 1rem;">{{ c.get_card_type_display }}</div>
+                    <div style="font-family: monospace; font-size: 1.1rem; letter-spacing: 2px; margin-bottom: 0.5rem;">
+                        **** **** **** {{ c.card_number|slice:"-4:" }}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+                        <span style="opacity: 0.8;">{{ user.customer.full_name }}</span>
+                        <span class="badge" style="background: rgba(255,255,255,0.2); border: none;">{{ c.get_status_display }}</span>
+                    </div>
+                </div>
+            {% empty %}
+                <p style="color: var(--text-muted); font-size: 0.875rem;">No cards issued yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
     <!-- Spend Overview Card -->
     <div class="card stagger-item delay-3" style="margin-bottom: 1.5rem;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
@@ -349,6 +380,17 @@
     // Sparkline
     const sparkCtx = document.getElementById('balSparkline');
     if (sparkCtx && balDates.length) {
+        // Create gradient
+        const ctx = sparkCtx.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, sparkCtx.height || 80);
+        if (isDark) {
+            gradient.addColorStop(0, 'rgba(41,161,132,0.4)');
+            gradient.addColorStop(1, 'rgba(41,161,132,0.0)');
+        } else {
+            gradient.addColorStop(0, 'rgba(15,122,99,0.4)');
+            gradient.addColorStop(1, 'rgba(15,122,99,0.0)');
+        }
+
         new Chart(sparkCtx, {
             type: 'line',
             data: {
@@ -356,7 +398,7 @@
                 datasets: [{
                     data: balValues,
                     borderColor: isDark ? '#29a184' : '#0f7a63',
-                    backgroundColor: isDark ? 'rgba(41,161,132,0.12)' : 'rgba(15,122,99,0.10)',
+                    backgroundColor: gradient,
                     fill: true,
                     borderWidth: 2,
                     pointRadius: 0,

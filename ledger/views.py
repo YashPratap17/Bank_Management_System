@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 # pyrefly: ignore [missing-import]
 from django.shortcuts import render, redirect
+from django.http import HttpResponse
 # pyrefly: ignore [missing-import]
 from django.views.decorators.http import require_GET
 
@@ -78,7 +79,13 @@ def transfer_view(request):
         if form.is_valid():
             recipient_account = form.cleaned_data["recipient_account"]
             try:
-                transfer(account, recipient_account, form.cleaned_data["amount"], form.cleaned_data["description"])
+                transfer(
+                    account, 
+                    recipient_account, 
+                    form.cleaned_data["amount"], 
+                    form.cleaned_data["description"],
+                    category=form.cleaned_data.get("category", "AUTO")
+                )
                 messages.success(
                     request,
                     f"Sent Rs.{form.cleaned_data['amount']} to {recipient_account.customer.full_name} "
@@ -99,8 +106,39 @@ def history_view(request):
     account = _get_active_customer_account(request)
     if account is None:
         return redirect("dashboard:home")
-    entries = account.recent_entries(limit=500)
+        
+    from .models import LedgerEntry
+    entries = LedgerEntry.objects.filter(account=account).select_related("transaction").order_by("-created_at")[:500]
     return render(request, "ledger/history.html", {"account": account, "entries": entries})
+
+
+@login_required
+def download_statement_view(request):
+    import csv
+    account = _get_active_customer_account(request)
+    if account is None:
+        return redirect("dashboard:home")
+        
+    from .models import LedgerEntry
+    entries = LedgerEntry.objects.filter(account=account).select_related("transaction").order_by("-created_at")
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="statement_{account.account_number}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Description', 'Category', 'Type', 'Amount', 'Balance After'])
+    
+    for entry in entries:
+        writer.writerow([
+            entry.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            entry.transaction.description,
+            entry.transaction.category,
+            entry.entry_type,
+            entry.amount,
+            entry.balance_after
+        ])
+        
+    return response
 
 
 @require_GET

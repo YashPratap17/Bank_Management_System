@@ -148,6 +148,7 @@ import os
 import uuid
 import base64
 import re
+import random
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -308,3 +309,28 @@ class FaceProfile(models.Model):
 
     def __str__(self):
         return f"FaceProfile for {self.user.username}"
+
+
+def get_random_card_number():
+    return "".join(random.choices("0123456789", k=16))
+
+
+class Card(models.Model):
+    class CardType(models.TextChoices):
+        DEBIT = "DEBIT", "Debit Card"
+        CREDIT = "CREDIT", "Credit Card"
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        INACTIVE = "INACTIVE", "Inactive"
+        PENDING_APPROVAL = "PENDING", "Pending Approval"
+        REJECTED = "REJECTED", "Rejected"
+
+    card_number = models.CharField(max_length=16, unique=True, default=get_random_card_number, editable=False)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="cards")
+    card_type = models.CharField(max_length=10, choices=CardType.choices, default=CardType.DEBIT)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.card_type} - {self.card_number[-4:]} ({self.account.customer.full_name})"

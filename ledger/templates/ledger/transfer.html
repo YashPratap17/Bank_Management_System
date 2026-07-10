@@ -105,6 +105,15 @@
                         class="input-field"
                     >
                 </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="id_category" style="display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Category</label>
+                    <select name="category" id="id_category" class="input-field" style="appearance: auto; padding: 0.75rem;">
+                        {% for value, label in form.fields.category.choices %}
+                            <option value="{{ value }}" {% if form.category.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
                 <div style="display: flex; gap: 0.75rem;">
                     <button type="submit" class="btn btn-primary" style="flex:1; justify-content:center;" id="submit-btn">

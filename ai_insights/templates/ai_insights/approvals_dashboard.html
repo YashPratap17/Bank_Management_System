@@ -32,6 +32,28 @@
 <p class="muted">No pending registrations.</p>
 {% endfor %}
 
+<h3 style="margin-top:28px;">Pending Credit Cards ({{ pending_cards|length }})</h3>
+{% for card in pending_cards %}
+<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+        <strong>{{ card.account.customer.full_name }}</strong> — {{ card.account.customer.roll_number }}
+        <div class="muted">Applied {{ card.created_at|date:"d M Y, H:i" }}</div>
+    </div>
+    <div>
+        <form method="post" action="{% url 'ai_insights:approve_card' card.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'ai_insights:reject_card' card.id %}" style="display:inline; margin-left:6px;">
+            {% csrf_token %}
+            <button type="submit" style="background:#b3541e;">Reject</button>
+        </form>
+    </div>
+</div>
+{% empty %}
+<p class="muted">No pending credit card applications.</p>
+{% endfor %}
+
 <h3 style="margin-top:28px;">Recently decided</h3>
 {% for customer in recently_decided %}
 <div class="card">

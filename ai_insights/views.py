@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from accounts.models import Customer
+from accounts.models import Customer, Card
 from ledger.models import Transaction
 from ledger.services import deposit
 from decimal import Decimal
@@ -39,9 +39,13 @@ def approvals_dashboard(request):
     recently_decided = Customer.objects.exclude(
         approval_status=Customer.ApprovalStatus.PENDING
     ).select_related("user", "approved_by").order_by("-approved_at")[:20]
+    
+    pending_cards = Card.objects.filter(status=Card.Status.PENDING_APPROVAL).select_related("account__customer")
+
     return render(request, "ai_insights/approvals_dashboard.html", {
         "pending": pending,
         "recently_decided": recently_decided,
+        "pending_cards": pending_cards,
     })
 
 
@@ -57,7 +61,11 @@ def approve_customer(request, customer_id):
     # Provide 5000 opening balance to any new accounts
     for account in customer.accounts.all():
         if account.get_balance() == 0:
-            deposit(account, Decimal("5000.00"), "Welcome Bonus / Opening Balance")
+            deposit(account, Decimal("5000.00"), "Welcome Bonus")
+        
+        # Issue a Debit Card automatically
+        if not account.cards.filter(card_type=Card.CardType.DEBIT).exists():
+            Card.objects.create(account=account, card_type=Card.CardType.DEBIT, status=Card.Status.ACTIVE)
 
     messages.success(request, f"Approved {customer.full_name} ({customer.roll_number}).")
     return redirect("ai_insights:approvals_dashboard")
@@ -72,4 +80,24 @@ def reject_customer(request, customer_id):
     customer.approved_at = timezone.now()
     customer.save()
     messages.warning(request, f"Rejected {customer.full_name} ({customer.roll_number}).")
+    return redirect("ai_insights:approvals_dashboard")
+
+
+@staff_member_required
+@require_POST
+def approve_card(request, card_id):
+    card = get_object_or_404(Card, pk=card_id)
+    card.status = Card.Status.ACTIVE
+    card.save()
+    messages.success(request, f"Approved Credit Card for {card.account.customer.full_name}.")
+    return redirect("ai_insights:approvals_dashboard")
+
+
+@staff_member_required
+@require_POST
+def reject_card(request, card_id):
+    card = get_object_or_404(Card, pk=card_id)
+    card.status = Card.Status.REJECTED
+    card.save()
+    messages.warning(request, f"Rejected Credit Card for {card.account.customer.full_name}.")
     return redirect("ai_insights:approvals_dashboard")

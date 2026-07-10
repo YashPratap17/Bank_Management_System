@@ -111,7 +111,7 @@ def withdraw(account: Account, amount: Decimal, description: str = "") -> Transa
 
 
 @db_transaction.atomic
-def transfer(from_account: Account, to_account: Account, amount: Decimal, description: str = "") -> Transaction:
+def transfer(from_account: Account, to_account: Account, amount: Decimal, description: str = "", category: str = None) -> Transaction:
     if from_account.pk == to_account.pk:
         raise ValueError("Cannot transfer to the same account.")
     _assert_active(from_account)
@@ -127,12 +127,16 @@ def transfer(from_account: Account, to_account: Account, amount: Decimal, descri
 
     # Include the recipient's name/account in categorization context so
     # keywords in the recipient field (e.g. "Zomato") are also matched.
-    recipient_str = str(to_account.customer.full_name)
-    category = categorize_transaction(description, recipient=recipient_str)
+    if category is None or category == "AUTO":
+        recipient_str = str(to_account.customer.full_name)
+        tx_category = categorize_transaction(description, recipient=recipient_str)
+    else:
+        tx_category = category
+        
     tx = Transaction.objects.create(
         tx_type=Transaction.TxType.TRANSFER,
         description=description,
-        category=category,
+        category=tx_category,
     )
 
     new_from_balance = from_balance - amount

@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
-from accounts.models import Customer, Account
+from accounts.models import Customer, Account, Card
 from accounts.forms import StudentRegistrationForm
 from ledger.models import LedgerEntry, Transaction
 
@@ -59,12 +59,14 @@ def dashboard_home(request):
 
     accounts = customer.accounts.all()
     account = accounts.first()
+    
+    cards = account.cards.all() if account else []
 
     # ── Mini chart data for dashboard ──────────────────────────────
-    category_labels = json.dumps([])
-    category_data   = json.dumps([])
-    balance_dates   = json.dumps([])
-    balance_values  = json.dumps([])
+    category_labels = []
+    category_data   = []
+    balance_dates   = []
+    balance_values  = []
     account_stats   = {"total_in": "0.00", "total_out": "0.00"}
     spend_pct       = 0
     category_data_zipped = []
@@ -92,9 +94,9 @@ def dashboard_home(request):
         for e in credit_entries:
             total_in += e.amount
 
-        category_labels = json.dumps(list(cat_totals.keys()))
+        category_labels = list(cat_totals.keys())
         cat_values = [float(v) for v in cat_totals.values()]
-        category_data = json.dumps(cat_values)
+        category_data = cat_values
         category_data_zipped = list(zip(cat_totals.keys(), cat_totals.values()))
 
         account_stats = {
@@ -126,8 +128,8 @@ def dashboard_home(request):
             if timezone.is_aware(dt):
                 dt = timezone.localtime(dt)
             daily[dt.strftime("%Y-%m-%d")] = float(e["balance_after"])
-        balance_dates  = json.dumps(list(daily.keys()))
-        balance_values = json.dumps(list(daily.values()))
+        balance_dates  = list(daily.keys())
+        balance_values = list(daily.values())
         balance_dates_list = list(daily.keys())
     else:
         balance_dates_list = []
@@ -142,7 +144,26 @@ def dashboard_home(request):
         "balance_dates": balance_dates,
         "balance_dates_list": balance_dates_list,
         "balance_values": balance_values,
+        "cards": cards,
     })
+
+
+@login_required
+def apply_credit_card(request):
+    if request.method == "POST":
+        customer = getattr(request.user, "customer", None)
+        if customer and customer.is_approved():
+            account = customer.accounts.first()
+            if account:
+                # Check if already applied or has credit card
+                if not account.cards.filter(card_type=Card.CardType.CREDIT).exists():
+                    Card.objects.create(account=account, card_type=Card.CardType.CREDIT, status=Card.Status.PENDING_APPROVAL)
+                    from django.contrib import messages
+                    messages.success(request, "Credit card application submitted successfully. Pending admin approval.")
+                else:
+                    from django.contrib import messages
+                    messages.warning(request, "You already have a credit card or an application is pending.")
+    return redirect("dashboard:home")
 
 
 
@@ -164,10 +185,10 @@ def analytics_view(request):
     if account is None:
         # No account yet — render with empty data.
         return render(request, "dashboard/analytics.html", {
-            "category_labels": json.dumps([]),
-            "category_data": json.dumps([]),
-            "balance_dates": json.dumps([]),
-            "balance_values": json.dumps([]),
+            "category_labels": [],
+            "category_data": [],
+            "balance_dates": [],
+            "balance_values": [],
         })
 
     # ------------------------------------------------------------------ #
@@ -214,9 +235,48 @@ def analytics_view(request):
     balance_values = list(daily_balance.values())
 
     return render(request, "dashboard/analytics.html", {
-        "category_labels": json.dumps(category_labels),
-        "category_data": json.dumps(category_data),
-        "balance_dates": json.dumps(balance_dates),
-        "balance_values": json.dumps(balance_values),
+        "category_labels": category_labels,
+        "category_data": category_data,
+        "balance_dates": balance_dates,
+        "balance_values": balance_values,
     })
+
+
+@login_required
+def manage_cards_view(request):
+    customer = getattr(request.user, "customer", None)
+    if not customer or not customer.is_approved():
+        return redirect("dashboard:home")
+    
+    account = customer.accounts.first()
+    if not account:
+        return redirect("dashboard:home")
+        
+    cards = account.cards.all()
+    return render(request, "dashboard/manage_cards.html", {"account": account, "cards": cards})
+
+
+from django.views.decorators.http import require_POST
+from django.shortcuts import get_object_or_404
+from accounts.models import Card
+
+@login_required
+@require_POST
+def toggle_card_status(request, card_id):
+    customer = getattr(request.user, "customer", None)
+    if not customer:
+        return redirect("dashboard:home")
+        
+    card = get_object_or_404(Card, pk=card_id, account__customer=customer)
+    if card.status == Card.Status.ACTIVE:
+        card.status = Card.Status.INACTIVE
+        from django.contrib import messages
+        messages.warning(request, f"Card {card.card_number[-4:]} is now frozen.")
+    elif card.status == Card.Status.INACTIVE:
+        card.status = Card.Status.ACTIVE
+        from django.contrib import messages
+        messages.success(request, f"Card {card.card_number[-4:]} has been unblocked.")
+        
+    card.save()
+    return redirect("dashboard:manage_cards")
 

@@ -8,7 +8,10 @@
             <h1 style="font-size: 1.75rem; font-weight: 700;">Transaction History</h1>
             <p style="font-size: 0.875rem; color: var(--text-secondary);">{{ account.account_number }}</p>
         </div>
-        <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm">← Dashboard</a>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{% url 'ledger:download_statement' %}" class="btn btn-sm" style="background: var(--accent); color: #fff;">Download CSV</a>
+            <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm">← Dashboard</a>
+        </div>
     </div>
 
     <div class="card" style="overflow-x: auto;">
