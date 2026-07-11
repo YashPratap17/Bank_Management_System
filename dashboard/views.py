@@ -340,19 +340,18 @@ def change_card_pin(request, card_id):
             return JsonResponse({"success": False, "error": "Invalid face descriptor."})
             
         import numpy as np
-        from accounts.views import cosine_similarity
+        from accounts.views import euclidean_distance
         
         input_vec = np.array(descriptor, dtype=np.float64)
         stored_vec = np.array(request.user.face_profile.get_descriptor(), dtype=np.float64)
         
-        sim = cosine_similarity(input_vec, stored_vec)
-        if sim >= 0.85:
+        dist = euclidean_distance(input_vec, stored_vec)
+        if dist <= 0.55:
             card.pin = new_pin
             card.save()
             return JsonResponse({"success": True, "message": "PIN changed successfully."})
         else:
-            return JsonResponse({"success": False, "error": "Face verification failed."})
+            return JsonResponse({"success": False, "error": "Face verification failed. Distance too high."})
             
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)})
-
