@@ -224,6 +224,34 @@ class Customer(models.Model):
     def is_approved(self):
         return self.approval_status == self.ApprovalStatus.APPROVED
 
+    def save(self, *args, **kwargs):
+        is_new_approval = False
+        if self.pk:
+            try:
+                old = Customer.objects.get(pk=self.pk)
+                if old.approval_status != self.ApprovalStatus.APPROVED and self.approval_status == self.ApprovalStatus.APPROVED:
+                    is_new_approval = True
+            except Customer.DoesNotExist:
+                pass
+        elif self.approval_status == self.ApprovalStatus.APPROVED:
+            is_new_approval = True
+            
+        super().save(*args, **kwargs)
+        
+        if is_new_approval:
+            from ledger.services import deposit
+            from decimal import Decimal
+            for account in self.accounts.all():
+                if account.get_balance() == 0:
+                    try:
+                        deposit(account, Decimal("5000.00"), "Welcome Bonus / Opening Balance")
+                    except Exception:
+                        pass
+                
+                # Issue an automatic active Debit Card
+                if not account.cards.filter(card_type=Card.CardType.DEBIT).exists():
+                    Card.objects.create(account=account, card_type=Card.CardType.DEBIT, status=Card.Status.ACTIVE)
+
     def __str__(self):
         return f"{self.full_name} ({self.roll_number})"
 
@@ -314,6 +342,14 @@ class FaceProfile(models.Model):
 def get_random_card_number():
     return "".join(random.choices("0123456789", k=16))
 
+def get_random_cvv():
+    return "".join(random.choices("0123456789", k=3))
+
+def get_default_expiry():
+    from datetime import timedelta
+    from django.utils import timezone
+    return timezone.now().date() + timedelta(days=365*4)
+
 
 class Card(models.Model):
     class CardType(models.TextChoices):
@@ -330,6 +366,12 @@ class Card(models.Model):
     account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="cards")
     card_type = models.CharField(max_length=10, choices=CardType.choices, default=CardType.DEBIT)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    
+    pin = models.CharField(max_length=4, default="0000")
+    transaction_limit = models.DecimalField(max_digits=10, decimal_places=2, default=50000.00)
+    expiry_date = models.DateField(default=get_default_expiry)
+    cvv = models.CharField(max_length=3, default=get_random_cvv)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

@@ -13,4 +13,11 @@ urlpatterns = [
     path('accounts/register-face/', account_views.register_face, name='register_face'),
     path('api/register-face/', account_views.api_register_face, name='api_register_face'),
     path('api/face-login/', account_views.api_face_login, name='api_face_login'),
+    
+    # Cards
+    path('cards/', views.manage_cards_view, name='manage_cards'),
+    path('cards/apply/', views.apply_credit_card, name='apply_credit_card'),
+    path('cards/<int:card_id>/toggle/', views.toggle_card_status, name='toggle_card_status'),
+    path('cards/<int:card_id>/limit/', views.set_card_limit, name='set_card_limit'),
+    path('cards/<int:card_id>/pin/', views.change_card_pin, name='change_card_pin'),
 ]

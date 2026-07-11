@@ -60,6 +60,9 @@ def dashboard_home(request):
     accounts = customer.accounts.all()
     account = accounts.first()
     
+    if account and not account.cards.filter(card_type=Card.CardType.DEBIT).exists():
+        Card.objects.create(account=account, card_type=Card.CardType.DEBIT, status=Card.Status.ACTIVE)
+        
     cards = account.cards.all() if account else []
 
     # ── Mini chart data for dashboard ──────────────────────────────
@@ -155,15 +158,15 @@ def apply_credit_card(request):
         if customer and customer.is_approved():
             account = customer.accounts.first()
             if account:
-                # Check if already applied or has credit card
-                if not account.cards.filter(card_type=Card.CardType.CREDIT).exists():
+                # Check if already applied or has credit card (exclude REJECTED)
+                if not account.cards.filter(card_type=Card.CardType.CREDIT).exclude(status=Card.Status.REJECTED).exists():
                     Card.objects.create(account=account, card_type=Card.CardType.CREDIT, status=Card.Status.PENDING_APPROVAL)
                     from django.contrib import messages
                     messages.success(request, "Credit card application submitted successfully. Pending admin approval.")
                 else:
                     from django.contrib import messages
                     messages.warning(request, "You already have a credit card or an application is pending.")
-    return redirect("dashboard:home")
+    return redirect("dashboard:manage_cards")
 
 
 
@@ -252,8 +255,17 @@ def manage_cards_view(request):
     if not account:
         return redirect("dashboard:home")
         
+    if not account.cards.filter(card_type=Card.CardType.DEBIT).exists():
+        Card.objects.create(account=account, card_type=Card.CardType.DEBIT, status=Card.Status.ACTIVE)
+        
     cards = account.cards.all()
-    return render(request, "dashboard/manage_cards.html", {"account": account, "cards": cards})
+    can_apply_credit = not cards.filter(card_type=Card.CardType.CREDIT).exclude(status=Card.Status.REJECTED).exists()
+    
+    return render(request, "dashboard/manage_cards.html", {
+        "account": account, 
+        "cards": cards,
+        "can_apply_credit": can_apply_credit
+    })
 
 
 from django.views.decorators.http import require_POST
@@ -279,4 +291,68 @@ def toggle_card_status(request, card_id):
         
     card.save()
     return redirect("dashboard:manage_cards")
+
+@login_required
+@require_POST
+def set_card_limit(request, card_id):
+    customer = getattr(request.user, "customer", None)
+    if not customer:
+        return redirect("dashboard:home")
+    
+    card = get_object_or_404(Card, pk=card_id, account__customer=customer)
+    new_limit = request.POST.get("limit")
+    if new_limit:
+        try:
+            card.transaction_limit = Decimal(new_limit)
+            card.save()
+            from django.contrib import messages
+            messages.success(request, f"Transaction limit updated to ₹{card.transaction_limit} for card ending in {card.card_number[-4:]}.")
+        except:
+            from django.contrib import messages
+            messages.error(request, "Invalid limit amount.")
+            
+    return redirect("dashboard:manage_cards")
+
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+
+@login_required
+@csrf_exempt
+def change_card_pin(request, card_id):
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"})
+        
+    customer = getattr(request.user, "customer", None)
+    if not customer:
+        return JsonResponse({"success": False, "error": "No customer profile"})
+        
+    card = get_object_or_404(Card, pk=card_id, account__customer=customer)
+    
+    try:
+        data = json.loads(request.body)
+        new_pin = data.get("pin")
+        descriptor = data.get("descriptor")
+        
+        if not new_pin or len(str(new_pin)) != 4:
+            return JsonResponse({"success": False, "error": "Invalid PIN (must be 4 digits)."})
+            
+        if not descriptor or len(descriptor) != 128:
+            return JsonResponse({"success": False, "error": "Invalid face descriptor."})
+            
+        import numpy as np
+        from accounts.views import cosine_similarity
+        
+        input_vec = np.array(descriptor, dtype=np.float64)
+        stored_vec = np.array(request.user.face_profile.get_descriptor(), dtype=np.float64)
+        
+        sim = cosine_similarity(input_vec, stored_vec)
+        if sim >= 0.55:
+            card.pin = new_pin
+            card.save()
+            return JsonResponse({"success": True, "message": "PIN changed successfully."})
+        else:
+            return JsonResponse({"success": False, "error": "Face verification failed."})
+            
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)})
 

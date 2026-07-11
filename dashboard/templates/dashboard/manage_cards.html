@@ -1,87 +1,459 @@
 {% extends "dashboard/base.html" %}
 {% block title %}Manage Cards — Kosh{% endblock %}
 
+{% block extra_style %}
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/dist/face-api.js"></script>
+<style>
+    /* Card Graphics */
+    .bank-card {
+        padding: 1.25rem;
+        border-radius: var(--radius-lg);
+        color: #fff;
+        box-shadow: var(--shadow-md);
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        aspect-ratio: 1.586;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .bank-card.credit {
+        background: linear-gradient(135deg, #2b1055 0%, #7597de 100%);
+    }
+
+    .bank-card.debit {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    }
+
+    .chip-icon {
+        width: 45px;
+        height: 35px;
+        background: linear-gradient(135deg, #fcd34d 0%, #b45309 100%);
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .chip-icon::before {
+        content: "";
+        position: absolute;
+        top: 30%;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .chip-icon::after {
+        content: "";
+        position: absolute;
+        top: 60%;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .card-number-display {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 1.15rem;
+        letter-spacing: 3px;
+        margin-bottom: 1rem;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Modals */
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-backdrop.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--surface);
+        padding: 2rem;
+        border-radius: var(--radius-xl);
+        width: 90%;
+        max-width: 400px;
+        box-shadow: var(--shadow-lg);
+        animation: slideUp 0.3s ease;
+    }
+
+    #video-container {
+        position: relative;
+        width: 100%;
+        max-width: 300px;
+        margin: 1rem auto;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: #000;
+        display: none;
+    }
+
+    video {
+        width: 100%;
+        display: block;
+        transform: scaleX(-1);
+    }
+
+    canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: scaleX(-1);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="stagger-item delay-1" style="max-width: 800px; margin: 0 auto;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+<div class="stagger-item delay-1" style="max-width: 900px; margin: 0 auto;">
+    <div
+        style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
         <div>
             <h1 style="font-size: 1.75rem; font-weight: 700;">Manage Cards</h1>
-            <p style="font-size: 0.875rem; color: var(--text-secondary);">Control your Debit and Credit Cards securely.</p>
+            <p style="font-size: 0.875rem; color: var(--text-secondary);">Control your Debit and Credit Cards securely.
+            </p>
         </div>
-        <a href="{% url 'dashboard:home' %}" class="btn btn-ghost btn-sm">← Dashboard</a>
+
+        <div style="display: flex; gap: 1rem;">
+            {% if can_apply_credit %}
+            <form method="post" action="{% url 'dashboard:apply_credit_card' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">+ Apply for Credit Card</button>
+            </form>
+            {% endif %}
+            <a href="{% url 'dashboard:home' %}" class="btn btn-ghost">← Dashboard</a>
+        </div>
     </div>
 
     {% if messages %}
-        {% for message in messages %}
-            <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid {% if message.tags == 'warning' %}var(--warning){% elif message.tags == 'success' %}var(--success){% else %}var(--accent){% endif %}; padding: 1rem;">
-                {{ message }}
-            </div>
-        {% endfor %}
+    {% for message in messages %}
+    <div class="card"
+        style="margin-bottom: 1.5rem; border-left: 4px solid {% if message.tags == 'warning' %}var(--warning){% elif message.tags == 'success' %}var(--success){% else %}var(--accent){% endif %}; padding: 1rem;">
+        {{ message }}
+    </div>
+    {% endfor %}
     {% endif %}
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+    <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: flex-start;">
         {% for card in cards %}
-            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
-                <!-- Card Visual -->
-                <div style="padding: 1.5rem; border-radius: var(--radius-lg); background: {% if card.card_type == 'CREDIT' %}linear-gradient(135deg, #a33c78 0%, #611e44 100%){% else %}linear-gradient(135deg, #1d365e 0%, #0d1e38 100%){% endif %}; color: #fff; box-shadow: var(--shadow-md); position: relative; overflow: hidden; margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                        <span style="font-size: 0.875rem; opacity: 0.9;">{{ card.get_card_type_display }}</span>
-                        {% if card.status == 'INACTIVE' %}
-                            <span class="badge" style="background: rgba(239, 68, 68, 0.8); color: #fff; border: none;">FROZEN</span>
-                        {% elif card.status == 'PENDING' %}
-                            <span class="badge" style="background: rgba(245, 158, 11, 0.8); color: #fff; border: none;">PENDING</span>
-                        {% else %}
-                            <span class="badge" style="background: rgba(255,255,255,0.2); border: none;">ACTIVE</span>
-                        {% endif %}
-                    </div>
-                    <div style="font-family: monospace; font-size: 1.25rem; letter-spacing: 3px; margin-bottom: 1rem;" id="cardNumber-{{ card.id }}">
-                        **** **** **** {{ card.card_number|slice:"-4:" }}
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
-                        <span style="opacity: 0.9;">{{ user.customer.full_name }}</span>
-                        <span style="font-size: 0.75rem; cursor: pointer; text-decoration: underline; opacity: 0.8;" onclick="toggleCardNumber('{{ card.id }}', '{{ card.card_number }}')">Reveal Number</span>
+        <div class="card"
+            style="display: flex; flex-direction: column; justify-content: space-between; width: 100%; max-width: 360px;">
+            <!-- Card Visual -->
+            <div class="bank-card {% if card.card_type == 'CREDIT' %}credit{% else %}debit{% endif %}">
+                <!-- Top Row -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="chip-icon"></div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                        <span style="font-size: 0.9rem; font-weight: 800; font-style: italic; opacity: 0.9;">KOSH
+                            BANK</span>
+                        <span style="font-size: 0.75rem; opacity: 0.8; margin-top: 4px;">{{ card.get_card_type_display }}</span>
                     </div>
                 </div>
 
-                <!-- Controls -->
-                {% if card.status != 'PENDING' %}
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <form method="post" action="{% url 'dashboard:toggle_card_status' card.id %}">
-                        {% csrf_token %}
-                        {% if card.status == 'ACTIVE' %}
-                            <button type="submit" class="btn" style="width: 100%; justify-content: center; background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger);">Freeze Card</button>
-                        {% else %}
-                            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Unblock Card</button>
-                        {% endif %}
-                    </form>
-                    
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-ghost" style="flex: 1; font-size: 0.8125rem;" onclick="alert('Demo: Check your email for instructions to reset your PIN.')">Change PIN</button>
-                        <button class="btn btn-ghost" style="flex: 1; font-size: 0.8125rem;" onclick="alert('Demo: Set Transaction Limit dialog opens here.')">Set Limits</button>
+                <!-- Middle Row: Number -->
+                <div class="card-number-display" id="cardNumber-{{ card.id }}" data-full="{{ card.card_number }}">
+                    **** **** **** {{ card.card_number|slice:"-4:" }}
+                </div>
+
+                <!-- Bottom Row: Name, Expiry, CVV -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-size: 0.65rem; opacity: 0.7; text-transform: uppercase;">Cardholder
+                            Name</span>
+                        <span
+                            style="font-size: 0.9rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">{{ user.customer.full_name }}</span>
+                    </div>
+
+                    <div style="display: flex; gap: 1.5rem; text-align: right;">
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-size: 0.65rem; opacity: 0.7;">VALID THRU</span>
+                            <span style="font-size: 0.85rem; font-family: monospace;">{{ card.expiry_date|date:"m/y" }}</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-size: 0.65rem; opacity: 0.7;">CVV</span>
+                            <span style="font-size: 0.85rem; font-family: monospace;" id="cvv-{{ card.id }}"
+                                data-full="{{ card.cvv }}">***</span>
+                        </div>
                     </div>
                 </div>
-                {% else %}
-                <p style="text-align: center; color: var(--text-muted); font-size: 0.875rem;">Awaiting administrator approval.</p>
+
+                <!-- Overlays for Status -->
+                {% if card.status == 'INACTIVE' %}
+                <div
+                    style="position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;">
+                    <span
+                        style="background: var(--danger); padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; letter-spacing: 2px;">FROZEN</span>
+                </div>
+                {% elif card.status == 'PENDING' %}
+                <div
+                    style="position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;">
+                    <span
+                        style="background: var(--warning); padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; letter-spacing: 2px; color: #000;">PENDING
+                        APPROVAL</span>
+                </div>
+                {% elif card.status == 'REJECTED' %}
+                <div
+                    style="position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;">
+                    <span
+                        style="background: var(--danger); padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; letter-spacing: 2px; color: #fff;">REJECTED</span>
+                </div>
                 {% endif %}
             </div>
-        {% empty %}
-            <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
-                <p style="color: var(--text-muted); margin-bottom: 1rem;">No cards issued yet.</p>
+
+            <!-- Controls -->
+            {% if card.status != 'PENDING' and card.status != 'REJECTED' %}
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+
+                <div
+                    style="display: flex; justify-content: space-between; font-size: 0.875rem; color: var(--text-secondary);">
+                    <span>Transaction Limit:</span>
+                    <strong style="color: var(--text);">₹{{ card.transaction_limit }}</strong>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-ghost" style="flex: 1; font-size: 0.8125rem;"
+                        onclick="toggleVisibility('{{ card.id }}')">👁️ Reveal Details</button>
+                    <button class="btn btn-ghost" style="flex: 1; font-size: 0.8125rem;"
+                        onclick="openLimitModal('{{ card.id }}', '{{ card.transaction_limit }}')">⚙️ Set Limits</button>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-ghost" style="flex: 1; font-size: 0.8125rem;"
+                        onclick="openPinModal('{{ card.id }}')">🔑 Change PIN</button>
+                    <form method="post" action="{% url 'dashboard:toggle_card_status' card.id %}"
+                        style="flex: 1; display:flex;">
+                        {% csrf_token %}
+                        {% if card.status == 'ACTIVE' %}
+                        <button type="submit" class="btn"
+                            style="flex: 1; justify-content: center; background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); font-size: 0.8125rem;">❄️
+                            Freeze</button>
+                        {% else %}
+                        <button type="submit" class="btn btn-primary"
+                            style="flex: 1; justify-content: center; font-size: 0.8125rem;">🔓 Unfreeze</button>
+                        {% endif %}
+                    </form>
+                </div>
             </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 4rem 2rem;">
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">No cards issued yet.</p>
+        </div>
         {% endfor %}
     </div>
 </div>
+
+<!-- Modal: Set Limit -->
+<div id="limitModal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Set Transaction Limit</h3>
+        <form id="limitForm" method="post" action="">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>New Limit (₹)</label>
+                <input type="number" name="limit" id="limitInput" class="form-control" required min="1000" step="1000">
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-ghost" style="flex:1;" onclick="closeModals()">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="flex:1;">Save Limit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Change PIN (Face ID) -->
+<div id="pinModal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Change PIN securely</h3>
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Enter your new 4-digit PIN. Your identity will be verified seamlessly via Face ID.
+        </p>
+        <div class="form-group">
+            <label>New 4-Digit PIN</label>
+            <input type="password" id="newPinInput" class="form-control" required maxlength="4" pattern="\d{4}"
+                style="letter-spacing: 8px; font-size: 1.5rem; text-align: center;">
+        </div>
+
+        <div id="video-container">
+            <video id="webcam" autoplay playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div id="loadingMsg"
+                style="position:absolute; bottom:10px; left:0; width:100%; text-align:center; color:#0d9488; font-weight:bold; font-size:0.8rem; background:rgba(0,0,0,0.5); padding:4px;">
+                Initializing scanner...</div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <button type="button" class="btn btn-ghost" style="flex:1;" onclick="closeModals()">Cancel</button>
+            <button type="button" id="startScanBtn" class="btn btn-primary" style="flex:1;"
+                onclick="startPinChangeFlow()">Verify & Change</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_script %}
 <script>
-    function toggleCardNumber(id, fullNumber) {
-        const el = document.getElementById('cardNumber-' + id);
-        if (el.textContent.includes('****')) {
-            // Add spaces every 4 digits for formatting
-            el.textContent = fullNumber.match(/.{1,4}/g).join(' ');
+    // --- UI Interactions ---
+    function toggleVisibility(id) {
+        const numEl = document.getElementById('cardNumber-' + id);
+        const cvvEl = document.getElementById('cvv-' + id);
+
+        if (cvvEl.textContent === '***') {
+            // Reveal
+            const fullNum = numEl.getAttribute('data-full');
+            numEl.textContent = fullNum.match(/.{1,4}/g).join(' ');
+            cvvEl.textContent = cvvEl.getAttribute('data-full');
         } else {
-            el.textContent = '**** **** **** ' + fullNumber.slice(-4);
+            // Hide
+            const fullNum = numEl.getAttribute('data-full');
+            numEl.textContent = '**** **** **** ' + fullNum.slice(-4);
+            cvvEl.textContent = '***';
+        }
+    }
+
+    function openLimitModal(cardId, currentLimit) {
+        document.getElementById('limitForm').action = `/cards/${cardId}/limit/`;
+        document.getElementById('limitInput').value = currentLimit.replace(/\.00$/, '');
+        document.getElementById('limitModal').classList.add('active');
+    }
+
+    let currentPinCardId = null;
+    function openPinModal(cardId) {
+        currentPinCardId = cardId;
+        document.getElementById('newPinInput').value = '';
+        document.getElementById('pinModal').classList.add('active');
+        document.getElementById('video-container').style.display = 'none';
+        document.getElementById('startScanBtn').style.display = 'flex';
+    }
+
+    function closeModals() {
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('active'));
+        if (window.localStream) {
+            window.localStream.getTracks().forEach(track => track.stop());
+            window.localStream = null;
+        }
+    }
+
+    // --- Face ID PIN Logic ---
+    let modelsLoaded = false;
+    let scanning = false;
+
+    async function loadModels() {
+        if (modelsLoaded) return;
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.5/model/';
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        modelsLoaded = true;
+    }
+
+    async function startPinChangeFlow() {
+        const pin = document.getElementById('newPinInput').value;
+        if (!/^\d{4}$/.test(pin)) {
+            alert("Please enter a valid 4-digit PIN.");
+            return;
+        }
+
+        document.getElementById('startScanBtn').style.display = 'none';
+        const vc = document.getElementById('video-container');
+        vc.style.display = 'block';
+
+        const video = document.getElementById('webcam');
+
+        try {
+            await loadModels();
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            video.srcObject = stream;
+            window.localStream = stream; // Keep reference to stop later
+
+            await video.play();
+            document.getElementById('loadingMsg').innerText = "Scanning for your face...";
+            scanning = true;
+            scanLoop();
+
+        } catch (err) {
+            alert("Camera error: " + err);
+            closeModals();
+        }
+    }
+
+    async function scanLoop() {
+        if (!scanning) return;
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('overlay');
+
+        // Match dimensions
+        if (video.videoWidth > 0) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const detection = await faceapi.detectSingleFace(video)
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+
+            if (detection) {
+                // Face found!
+                scanning = false;
+                document.getElementById('loadingMsg').innerText = "Face recognized! Verifying securely...";
+                document.getElementById('loadingMsg').style.color = "#10b981"; // success green
+
+                // Draw box for visual feedback
+                const dims = faceapi.matchDimensions(canvas, video, true);
+                const resized = faceapi.resizeResults(detection, dims);
+                faceapi.draw.drawDetections(canvas, resized);
+
+                const descriptorArray = Array.from(detection.descriptor);
+                await submitPinChange(descriptorArray);
+                return;
+            }
+        }
+
+        // Loop every 500ms
+        setTimeout(scanLoop, 500);
+    }
+
+    async function submitPinChange(descriptor) {
+        const pin = document.getElementById('newPinInput').value;
+
+        try {
+            const response = await fetch(`/cards/${currentPinCardId}/pin/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin: pin, descriptor: descriptor })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                alert("Success: " + data.message);
+                window.location.reload();
+            } else {
+                alert("Verification failed: " + data.error);
+                closeModals();
+            }
+        } catch (e) {
+            alert("Network error.");
+            closeModals();
         }
     }
 </script>
