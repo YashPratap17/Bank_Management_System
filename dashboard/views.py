@@ -346,7 +346,7 @@ def change_card_pin(request, card_id):
         stored_vec = np.array(request.user.face_profile.get_descriptor(), dtype=np.float64)
         
         sim = cosine_similarity(input_vec, stored_vec)
-        if sim >= 0.55:
+        if sim >= 0.85:
             card.pin = new_pin
             card.save()
             return JsonResponse({"success": True, "message": "PIN changed successfully."})

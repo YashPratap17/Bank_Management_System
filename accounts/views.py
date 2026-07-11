@@ -65,9 +65,9 @@ def api_face_login(request):
         best_similarity = -1.0
 
         # Cosine similarity threshold.
-        # 0.55 is tolerant enough for typical webcam / lighting variation
-        # while still being discriminative. Raise to 0.65+ for stricter matching.
-        THRESHOLD = 0.55
+        # 0.85 corresponds to a standard face-api Euclidean distance of ~0.54,
+        # which is highly discriminative and prevents false-positive logins.
+        THRESHOLD = 0.85
 
         for profile in FaceProfile.objects.select_related('user').all():
             try:
